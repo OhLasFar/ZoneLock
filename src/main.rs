@@ -116,6 +116,14 @@ fn main() {
     *HK_IDS.lock().unwrap() = hk_ids;
     // daily update check (if allowed); results come back as UiCmd::UpdateChanged
     zonelock::update::spawn_auto(Arc::clone(&shared));
+    // we are the new version, started by an update: say it went well
+    if zonelock::update::just_updated() {
+        log::line(format!("updated to {}", env!("CARGO_PKG_VERSION")));
+        zonelock::planprompt::show_success(
+            &format!("ZoneLock updated to {}", env!("CARGO_PKG_VERSION")),
+            "Update complete. Your zones, plans and settings are all kept.",
+        );
+    }
 
     unsafe {
         let mut msg = MSG::default();

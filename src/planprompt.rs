@@ -98,6 +98,22 @@ pub fn show_info(title: &str, body: &str) {
     );
 }
 
+/// A success card (green, like "Plan saved") that stays a bit longer:
+/// used to confirm a finished update.
+pub fn show_success(title: &str, body: &str) {
+    PENDING.with(|p| p.borrow_mut().take());
+    show(
+        Card {
+            kind: Kind::Saved,
+            title: title.into(),
+            body: body.into(),
+            hint: String::new(),
+        },
+        6000,
+        false,
+    );
+}
+
 /// Ask before overwriting `slot`. `captured` is what will be written if
 /// the user confirms; `save_label` is the save shortcut modifiers label.
 pub fn ask_overwrite(slot: u8, captured: Plan, existing: &Plan, free: &[u8], save_label: &str) {
