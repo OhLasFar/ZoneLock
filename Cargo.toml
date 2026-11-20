@@ -1,6 +1,6 @@
 [package]
 name = "zonelock"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 description = "Keep maximize and windowed fullscreen (F11) inside monitor zones on Windows"
 license = "GPL-3.0-or-later"
