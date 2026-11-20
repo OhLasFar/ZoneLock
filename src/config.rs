@@ -56,6 +56,10 @@ pub struct Config {
     /// Reopen app windows where they were left (positions.json).
     #[serde(default = "default_true")]
     pub remember_positions: bool,
+    /// Ask GitHub once a day whether a newer release exists (the only
+    /// network use; update.rs).
+    #[serde(default = "default_true")]
+    pub check_updates: bool,
     /// Start with Windows (HKCU Run key). Off by default.
     #[serde(default)]
     pub autostart: bool,
@@ -197,6 +201,7 @@ impl Default for Config {
             max_exit_sends: default_max_exit_sends(),
             shift_snap: true,
             remember_positions: true,
+            check_updates: true,
             autostart: false,
             hotkeys: HotkeyConfig::default(),
             layouts: LayoutSet::default(),

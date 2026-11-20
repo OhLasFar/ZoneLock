@@ -423,6 +423,7 @@ fn state_json(shared: &Shared) -> serde_json::Value {
     let mons = shared.monitors.read().unwrap().clone();
     let mut st = uimodel::build_state(&cfg, crate::autostart::is_enabled(), &mons);
     st.hotkeys_rejected = crate::hotkeys::rejected();
+    st.update = crate::update::view();
     let bindings = [
         &cfg.hotkeys.toggle,
         &cfg.hotkeys.editor,
@@ -478,6 +479,9 @@ fn on_message(json: &str) {
         }
         PageMsg::OpenEditor => return crate::tray::send(UiCmd::OpenEditor),
         PageMsg::OpenConfigDir => return crate::tray::send(UiCmd::OpenConfigDir),
+        PageMsg::UpdateCheck => return crate::update::check(false),
+        PageMsg::UpdateInstall => return crate::update::install(),
+        PageMsg::UpdatePage => return crate::update::open_page(),
         PageMsg::OpenCredit => {
             unsafe {
                 let _ = windows::Win32::UI::Shell::ShellExecuteW(

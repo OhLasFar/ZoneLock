@@ -55,6 +55,7 @@ code injected into other apps.
 | **Reopen where you left it** | Close an app, open it later: it comes back on the same display, at the same spot. |
 | **Display changes handled** | Change resolution, scaling or the taskbar, unplug a monitor: windows go back into their zones. A missing display falls back to the main one. |
 | **Settings panel** | A clean panel from the tray icon. Every change applies instantly. Shortcuts are recorded by pressing them, on any keyboard layout. |
+| **Updates in one click** | ZoneLock tells you when a new version is out and installs it for you (Settings → System). Can be turned off. |
 | **Light** | ~1 MB, ~2 MB of RAM in the background. The settings window only runs while it is open. |
 
 ## Screenshots
@@ -165,8 +166,13 @@ out of other apps' processes, and it is the safe choice.
 
 ## Privacy & safety
 
-- **No network.** ZoneLock never connects anywhere: no update check, no
-  analytics, no crash reports.
+- **One connection, for updates only.** Once a day ZoneLock asks GitHub
+  whether a newer release of ZoneLock exists (a plain request with no data
+  about you). Turn it off in **Settings → System**. No analytics, no crash
+  reports, nothing else goes online.
+- **Verified updates.** An update is downloaded from this repository's
+  releases only, checked against the release's SHA-256 checksums, then
+  installed; ZoneLock restarts by itself.
 - **No injection.** It only uses public Windows APIs (`SetWinEventHook`
   out-of-context, `SetWindowPos`). Nothing is loaded into other apps.
 - **No admin.** Everything runs as your user; the installer is per-user.

@@ -47,5 +47,6 @@ jobs:
           body_path: ${{ steps.notes.outputs.file }}
           files: |
             dist/*.zip
+            dist/*-win-x64.exe
             dist/*-setup.exe
             dist/SHA256SUMS.txt

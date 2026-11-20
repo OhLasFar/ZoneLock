@@ -155,7 +155,16 @@ zones. Rust + windows-rs, single static exe, no admin, no DLL injection.
 - Windows born covering a monitor are ignored forever (exclusive
   fullscreen games).
 - Fail loud on corrupt config; never silently rewrite user files.
-- No network, no telemetry, config under `%APPDATA%\ZoneLock` only
+- Network: ONLY `update.rs` (WinHTTP GET to api.github.com latest release
+  of OhLasFar/ZoneLock + that release's github.com asset links; generic
+  User-Agent, no user data; daily, `config.check_updates`, or on click).
+  Downloads are verified against the release's SHA256SUMS.txt
+  (`update::sha256_hex`). Installed copy (unins000.exe beside the exe) ->
+  setup `/VERYSILENT /update=1` (Inno `[Run] Check: IsUpdate` relaunches);
+  portable -> exe swap (`.old`) + `--after-update <pid>`. Releases must
+  keep shipping `zonelock-X-setup.exe`, `zonelock-X-win-x64.exe` and
+  SHA256SUMS.txt (package.ps1) or older copies cannot update.
+- No telemetry, config under `%APPDATA%\ZoneLock` only
   (WebView2 user data in `%APPDATA%\ZoneLock\WebView2`). The settings
   page must stay self-contained: CSP `default-src 'none'`, every
   navigation away from data:/about: is cancelled, no external assets.

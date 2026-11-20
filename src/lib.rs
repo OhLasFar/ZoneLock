@@ -23,6 +23,7 @@ pub mod state;
 pub mod tray;
 pub mod uimodel;
 pub mod unsnap;
+pub mod update;
 pub mod uidraw;
 pub mod watcher;
 pub mod webui;
