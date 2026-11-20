@@ -158,30 +158,32 @@ fn normal_spot(mon: &monitor::Monitor) -> Rect {
 }
 
 #[test]
-fn maximize_is_contained_to_zone() {
+fn maximize_is_left_alone_even_when_snapped() {
     let _g = SERIAL.lock().unwrap();
     let (_shared, mon) = test_shared();
     let spot = normal_spot(&mon);
     let hwnd = make_window(&spot);
     pump(150);
 
-    // first evaluation: normal window gets tracked
+    // snapped into the left zone, tracked
+    let zone = FracRect::new(0.0, 0.0, 0.5, 1.0).to_pixels(&mon.work, 0);
+    assert!(zonelock::place::apply_zone(hwnd, &zone));
+    pump(150);
     let a1 = watcher::evaluate(hwnd);
     assert!(matches!(a1, Action::Track(_)), "expected Track, got {a1:?}");
 
-    // maximize it
+    // maximize it: a real maximize, ZoneLock lets go
     unsafe {
         let _ = ShowWindow(hwnd, SW_MAXIMIZE);
     }
     pump(200);
     let a2 = watcher::evaluate(hwnd);
-    assert!(matches!(a2, Action::ContainMaximize(_)), "expected ContainMaximize, got {a2:?}");
-
-    // final geometry = left zone (visible bounds - zone placement
-    // compensates the invisible DWM frame)
-    let want = FracRect::new(0.0, 0.0, 0.5, 1.0).to_pixels(&mon.work, 0);
+    assert_eq!(a2, Action::Forget);
+    unsafe {
+        assert!(IsZoomed(hwnd).as_bool(), "still maximized");
+    }
     let got = visible_rect(hwnd);
-    assert!(got.approx_eq(&want, 4), "rect {got:?} != zone {want:?}");
+    assert!(got.width() > zone.width() + 100, "fills the display, not the zone: {got:?}");
     unsafe {
         let _ = DestroyWindow(hwnd);
     }
@@ -279,9 +281,9 @@ fn restore_after_lock_returns_to_normal() {
         let _ = ShowWindow(hwnd, SW_MAXIMIZE);
     }
     pump(200);
-    assert!(matches!(watcher::evaluate(hwnd), Action::ContainMaximize(_)));
+    assert_eq!(watcher::evaluate(hwnd), Action::Forget);
 
-    // user restores to a normal rect: engine releases the lock
+    // user restores to a normal rect: tracked again from there
     unsafe {
         let _ = ShowWindow(hwnd, SW_RESTORE);
         SetWindowPos(
@@ -346,14 +348,14 @@ fn winevent_hook_catches_real_maximize() {
         let _ = ShowWindow(hwnd, SW_MAXIMIZE);
         pump(600); // let the out-of-context event arrive
 
-        let want = FracRect::new(0.0, 0.0, 0.5, 1.0).to_pixels(&mon.work, 0);
+        // the event reached the engine, which leaves a maximize alone
+        let zone = FracRect::new(0.0, 0.0, 0.5, 1.0).to_pixels(&mon.work, 0);
         let got = visible_rect(hwnd);
+        let zoomed = IsZoomed(hwnd).as_bool();
         let _ = UnhookWinEvent(hook);
         let _ = DestroyWindow(hwnd);
-        assert!(
-            got.approx_eq(&want, 4),
-            "WinEvent path did not contain: {got:?} != {want:?}"
-        );
+        assert!(zoomed, "maximize undone by the WinEvent path");
+        assert!(got.width() > zone.width() + 100, "maximize pulled into a zone: {got:?}");
     }
 }
 

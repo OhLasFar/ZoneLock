@@ -1,7 +1,9 @@
 # ZoneLock agent notes
 
-Windows tool: keep maximize + windowed fullscreen (F11) inside monitor
-zones. Rust + windows-rs, single static exe, no admin, no DLL injection.
+Windows tool: monitor zones (snap, presets, plans) where windowed
+fullscreen (F11) of a snapped window stays inside its zone; maximize is a
+real maximize. Rust + windows-rs, single static exe, no admin, no DLL
+injection.
 
 ## Layout of the code
 
@@ -42,6 +44,11 @@ zones. Rust + windows-rs, single static exe, no admin, no DLL injection.
   drawing through `uimodel::commit_editor_layout` (pending name -> user
   preset; free drawing -> name of the identical preset or "Custom") and
   `close_all` calls `webui::refresh()` so the panel updates.
+- Maximize is NEVER managed (user decision 2026-11-20): `engine::decide`
+  returns `Forget` for any zoomed window (state dropped), except the
+  frameless stable-fullscreen locks that own the frame
+  (ZoneFsExitSent / ZoneFsBorderless). `Action::ContainMaximize` /
+  `LockKind::Maximize` remain only for those legacy paths.
 - Fullscreen is held in a zone ONLY when the window sat in its zone
   just before (`engine::fs_entry`: normal rect fills the zone within
   `ZONE_FIT_TOL` = 16 px of invisible borders via

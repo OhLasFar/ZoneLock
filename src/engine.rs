@@ -165,23 +165,24 @@ pub fn decide(
     let covers = covers_monitor(&info.rect, mon, pol.fullscreen_tolerance);
     let zoomed = info.is_zoomed();
 
+    // Maximize is the user's: a maximized window really fills its display
+    // and is not managed meanwhile (state dropped: restoring it starts
+    // fresh, and F11 from maximized is a plain fullscreen). Exception: the
+    // frameless "stable" fullscreen states, which own the window's frame
+    // and must give it back.
+    let owns_frame = matches!(
+        prev,
+        Some(WinState::Locked(l))
+            if matches!(l.kind, LockKind::ZoneFsExitSent | LockKind::ZoneFsBorderless)
+    );
+    if zoomed && !owns_frame {
+        return Action::Forget;
+    }
+
     match prev {
         Some(WinState::Locked(l)) => decide_locked(info, l, mon, layout, covers, zoomed, pol),
         Some(WinState::Ignored) => {
-            if zoomed {
-                // WS_MAXIMIZE is never set on a real exclusive-
-                // fullscreen surface: this is an app window after all
-                // (e.g. it was born covering, then got maximized).
-                match layout {
-                    Some(l) => {
-                        let n = make_normal(info, mon, layout);
-                        zone_target(l, mon, &n)
-                            .map(Action::ContainMaximize)
-                            .unwrap_or(Action::Ignore)
-                    }
-                    None => Action::Nothing,
-                }
-            } else if covers {
+            if covers {
                 Action::Nothing
             } else {
                 Action::Track(make_normal(info, mon, layout))
@@ -189,21 +190,7 @@ pub fn decide(
         }
         prev_state => {
             let normal = prev_state.and_then(|s| s.normal().cloned());
-            if zoomed {
-                match layout {
-                    // Born maximized (first sighting already zoomed):
-                    // there is no remembered spot, so use the zone its
-                    // rect overlaps most and remember that as home.
-                    Some(l) => {
-                        let n = normal
-                            .unwrap_or_else(|| make_normal(info, mon, layout));
-                        zone_target(l, mon, &n)
-                            .map(Action::ContainMaximize)
-                            .unwrap_or(Action::Ignore)
-                    }
-                    None => Action::Ignore,
-                }
-            } else if covers {
+            if covers {
                 match &normal {
                     Some(n) => fs_entry(n, mon, layout, pol, false),
                     None => Action::Ignore, // born covering: games, splashes
@@ -228,17 +215,12 @@ fn decide_locked(
     mon: &Monitor,
     layout: Option<&Layout>,
     covers: bool,
-    zoomed: bool,
+    _zoomed: bool,
     pol: &Policy,
 ) -> Action {
     match l.kind {
+        // (a maximized window never reaches here: `decide` drops it)
         LockKind::Maximize => {
-            if zoomed {
-                if over_budget(l, pol) {
-                    return Action::Nothing;
-                }
-                return Action::ContainMaximize(l.target);
-            }
             if covers {
                 // F11 pressed while maximize-locked.
                 return fs_entry(&l.normal, mon, layout, pol, true);
@@ -249,10 +231,6 @@ fn decide_locked(
             Action::Track(make_normal(info, mon, layout))
         }
         LockKind::ZoneFsMoved => {
-            if zoomed {
-                // left fullscreen into maximized: plain maximize rule
-                return Action::ContainMaximize(l.target);
-            }
             // `orig_style` = style while fullscreen (captured at hold time).
             // Getting a caption back means the app left fullscreen, even
             // if it is still sitting on the zone rect (Chrome sometimes
@@ -558,31 +536,28 @@ mod tests {
     }
 
     #[test]
-    fn maximize_after_normal_is_contained() {
-        let st = normal_zone0();
-        let maxed = info(Rect::new(0, 0, 3440, 1400), true);
-        match decide(&maxed, Some(&st), Some(&mon()), Some(&layout()), None, &pol(Some(F11))) {
-            Action::ContainMaximize(r) => assert_eq!(r, Rect::new(0, 0, 1720, 1400)),
-            a => panic!("expected ContainMaximize, got {a:?}"),
+    fn maximize_is_a_real_maximize() {
+        // snapped, free, never seen, ignored, held fullscreen: the
+        // maximized window is left alone and its state dropped
+        let maxed = info(Rect::new(-8, -8, 3448, 1408), true);
+        for st in [Some(snapped_zone0()), Some(normal_zone0()), None, Some(WinState::Ignored), Some(held(0, HOME))] {
+            assert_eq!(
+                decide(&maxed, st.as_ref(), Some(&mon()), Some(&layout()), None, &pol(Some(F11))),
+                Action::Forget
+            );
         }
-    }
-
-    #[test]
-    fn born_maximized_is_contained_not_ignored() {
-        // first sighting already zoomed (app restored maximized):
-        // contain into the best-overlap zone instead of ignoring
-        let maxed = info(Rect::new(0, 0, 3440, 1400), true);
-        match decide(&maxed, None, Some(&mon()), Some(&layout()), None, &pol(Some(F11))) {
-            Action::ContainMaximize(r) => assert_eq!(r, Rect::new(0, 0, 1720, 1400)),
-            a => panic!("expected ContainMaximize, got {a:?}"),
-        }
-        // same for a window previously Ignored (born covering) that
-        // turns out to be a real app once maximized
-        let st = WinState::Ignored;
-        match decide(&maxed, Some(&st), Some(&mon()), Some(&layout()), None, &pol(Some(F11))) {
-            Action::ContainMaximize(_) => {}
-            a => panic!("expected ContainMaximize, got {a:?}"),
-        }
+        // restored afterwards: tracked fresh where it lands
+        let back = info(Rect::new(-7, 0, 1727, 1407), false);
+        assert!(matches!(
+            decide(&back, None, Some(&mon()), Some(&layout()), None, &pol(Some(F11))),
+            Action::Track(_)
+        ));
+        // F11 from maximized (no state any more): plain fullscreen
+        let covering = info(Rect::new(0, 0, 3440, 1440), false);
+        assert_eq!(
+            decide(&covering, None, Some(&mon()), Some(&layout()), None, &pol(Some(F11))),
+            Action::Ignore
+        );
     }
 
     const HOME: &str = "\\\\.\\DISPLAY1";
@@ -721,12 +696,12 @@ mod tests {
             decide(&past, Some(&right), Some(&mon()), Some(&layout()), None, &pol(None)),
             Action::KeepOnScreen(Rect::new(1684, 0, 3440, 1400))
         );
-        // left fullscreen into maximized: contained like a maximize
+        // left fullscreen into maximized: a real maximize, let go
         let mut zoomed = info(Rect::new(-8, -8, 3448, 1408), true);
         zoomed.style = WS_CAPTION_BITS;
         assert_eq!(
             decide(&zoomed, Some(&held(0, HOME)), Some(&mon()), Some(&layout()), None, &pol(None)),
-            Action::ContainMaximize(Rect::new(0, 0, 1720, 1400))
+            Action::Forget
         );
         // the held state keeps counting refights across re-holds
         let st = held(2, HOME);

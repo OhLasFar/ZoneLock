@@ -4,9 +4,9 @@
 
 # ZoneLock
 
-**Maximize and F11 fullscreen, kept inside your zones.**
+**Snap windows into zones. Even F11 fullscreen stays in its zone.**
 
-Split any screen into zones. Maximized windows stay in their zone.
+Split any screen into zones and snap your apps into them.
 Fullscreen video stays in its zone. Your chat stays visible.
 
 [![Latest release](https://img.shields.io/github/v/release/OhLasFar/ZoneLock?style=flat-square&color=3b82f6&label=release)](https://github.com/OhLasFar/ZoneLock/releases/latest)
@@ -27,26 +27,40 @@ Fullscreen video stays in its zone. Your chat stays visible.
 ## Why ZoneLock?
 
 On a wide screen you want a video on the left and your chat on the right.
-Then you hit **F11** or **Maximize**, and the video takes the whole screen.
+Then you hit **F11**, and the video takes the whole screen.
 Window managers like PowerToys FancyZones let you snap windows into zones,
-but a maximized or fullscreen window still covers the whole monitor
+but a fullscreen window still covers the whole monitor
 ([PowerToys #279](https://github.com/microsoft/PowerToys/issues/279), open
 since 2019).
 
-**ZoneLock fixes exactly that.** Maximize fills the zone. F11 gives you real
-fullscreen, inside the zone. Everything else is built around it: snapping,
+**ZoneLock fixes exactly that.** F11 gives you real fullscreen, inside the
+zone. Everything else is built around it: snapping,
 presets per display, saved workspaces, and windows that come back where you
 left them.
 
 It is a single ~1 MB program. No admin rights, no account, no telemetry, no
 code injected into other apps.
 
+## Plans: one key per setup
+
+Watching something with friends, then back to work, then back again?
+Save each arrangement of apps as a **plan** and switch with one shortcut.
+The apps of the plan come back exactly where you left them, everything else
+steps aside (minimized, not closed). Apps that are not running are launched
+for you, even after a reboot.
+
+<div align="center">
+<img src="docs/assets/plans.gif" alt="Plans demo: Ctrl+Alt+Shift+1 saves the video and chat as plan 1, Alt+Shift+2 switches to the editor and task board, Alt+Shift+1 brings the video and chat back exactly as they were" width="900">
+</div>
+
+`Ctrl+Alt+Shift+1…9` saves the apps you have open as plan 1–9.
+`Alt+Shift+1…9` goes to that plan. Nothing to set up first.
+
 ## Features
 
 | | |
 |---|---|
 | **Zones per display** | Every monitor gets its own layout. Pick a built-in preset (halves, thirds, 2/3 + 1/3, grid, focus…) or draw your own and save it. |
-| **Maximize stays in its zone** | The maximize button fills the zone the window is in, not the whole screen. |
 | **F11 stays in its zone** | A window sitting in a zone goes **real fullscreen** (no bars, no tabs) inside that zone, and the rest of the screen keeps working. A window that is not in a zone (Parsec or Remote Desktop connecting, a game, a player you moved out) gets the whole screen as usual. |
 | **Shift + drag to snap** | Hold Shift while moving a window: the zones light up, drop it on one. |
 | **Drag out, get your size back** | Pull a snapped window out of its zone and it returns to the size it had before, right under your cursor. |
@@ -94,8 +108,9 @@ Windows 10 or 11, 64-bit. Grab the latest version from the
 1. **Run ZoneLock.** Its icon appears in the system tray (next to the clock).
 2. **Left-click the icon** to open Settings → **Displays**, and pick a layout
    for each monitor (or click **+ New preset** and draw one).
-3. **Use your apps.** Maximize a window or press F11 in a video: it stays in
-   its zone. Hold **Shift** while dragging a window to snap it.
+3. **Use your apps.** Hold **Shift** while dragging a window to snap it into
+   a zone. Press F11 in a video sitting in a zone: it stays in its zone.
+   The maximize button is a normal maximize.
 
 Right-click the tray icon for **Active** (pause / resume) and **Quit**.
 
@@ -187,8 +202,7 @@ ZoneLock listens to window events (show, move, resize, minimize) with
 out-of-context WinEvent hooks on its own thread. A small state machine per
 window decides what to do:
 
-- a normal window that suddenly covers its monitor because of **maximize** is
-  put back into the zone it was in;
+- a **maximized** window is left alone: maximize is always a real maximize;
 - a window that goes **fullscreen** while sitting in a zone is held inside it while it stays in
   its own fullscreen mode (the app keeps hiding its bars); leaving fullscreen
   gives it back its frame and its place. A free-floating window going
