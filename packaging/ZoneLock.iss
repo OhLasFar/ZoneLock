@@ -56,7 +56,7 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 Filename: "{app}\zonelock.exe"; Description: "Launch ZoneLock"; Flags: nowait postinstall skipifsilent
 ; silent update started from ZoneLock itself (/update=1): start it again
-Filename: "{app}\zonelock.exe"; Flags: nowait; Check: IsUpdate
+Filename: "{app}\zonelock.exe"; Parameters: "--updated"; Flags: nowait; Check: IsUpdate
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/IM zonelock.exe /F"; Flags: runhidden; RunOnceId: "StopZoneLock"

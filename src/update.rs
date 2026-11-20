@@ -418,13 +418,25 @@ fn install_blocking(rel: &Release) -> Result<(), String> {
     Ok(())
 }
 
+static JUST_UPDATED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// This process is the new version, started right after an update.
+pub fn just_updated() -> bool {
+    JUST_UPDATED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Called first thing in main: `--after-update <pid>` waits for the old
 /// process to exit (it holds the single-instance mutex) and removes the
 /// old exe left by a portable update.
 pub fn after_update_startup() {
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
+        // started by the setup after a silent update (ZoneLock.iss passes it)
+        if a == "--updated" {
+            JUST_UPDATED.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
         if a == "--after-update" {
+            JUST_UPDATED.store(true, std::sync::atomic::Ordering::Relaxed);
             if let Some(pid) = args.next().and_then(|p| p.parse::<u32>().ok()) {
                 win::wait_pid(pid, 15_000);
             }
