@@ -45,6 +45,8 @@ const OBJID_WINDOW: i32 = 0;
 const CHILDID_SELF: i32 = 0;
 
 const WM_STOP: u32 = 0x0400 + 0x7A; // WM_APP+0x7A internal stop
+/// Fullscreen zone <-> whole display for the window in wparam.
+const WM_FS_TOGGLE: u32 = 0x0400 + 0x7B;
 const TICK_MS: u32 = 2000;
 
 /// State shared between the UI thread (tray/hotkeys/overlay) and the
@@ -89,6 +91,9 @@ struct Ctx {
     /// size a moment after leaving fullscreen, which would throw them out
     /// of their zone (even off screen).
     settle: std::collections::HashMap<isize, (crate::rect::Rect, Instant, u8)>,
+    /// Fullscreen windows the user sent to the whole display with the
+    /// fs_toggle keys: their zone lock, to send them back on a 2nd press.
+    released_fs: std::collections::HashMap<isize, crate::state::LockedState>,
 }
 
 /// How long after leaving fullscreen a self-inflicted move is undone.
@@ -114,6 +119,9 @@ unsafe extern "system" fn hook_proc(
             with_ctx(|ctx| {
                 ctx.tracker.remove(hwnd.0 as isize);
                 ctx.snaps.observe(hwnd.0 as isize, Seen::Gone, Instant::now());
+                if event == EVENT_OBJECT_DESTROY {
+                    ctx.released_fs.remove(&(hwnd.0 as isize));
+                }
             });
             if event == EVENT_OBJECT_DESTROY {
                 crate::unsnap::with(|b| b.forget(hwnd.0 as isize));
@@ -738,6 +746,7 @@ pub fn run(shared: Arc<Shared>) {
             resnap_until: None,
             drag: None,
             settle: Default::default(),
+            released_fs: Default::default(),
         });
     });
 
@@ -794,6 +803,10 @@ pub fn run(shared: Arc<Shared>) {
                 if msg.message == WM_QUIT || msg.message == WM_STOP {
                     shared.running.store(false, Ordering::Relaxed);
                     break;
+                }
+                if msg.message == WM_FS_TOGGLE && msg.hwnd.0.is_null() {
+                    fs_toggle(HWND(msg.wParam.0 as *mut _));
+                    continue;
                 }
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
@@ -917,6 +930,75 @@ fn periodic_tick(shared: &Arc<Shared>, _tid: u32) {
 }
 
 /// Ask the watcher thread to stop (called from the UI thread on exit).
+/// From the UI thread (hotkey): toggle the fullscreen of the active
+/// window between its zone and the whole display.
+pub fn post_fs_toggle(hwnd: HWND) {
+    let tid = THREAD_ID.load(Ordering::Relaxed);
+    if tid != 0 {
+        unsafe {
+            let _ = PostThreadMessageW(tid, WM_FS_TOGGLE, WPARAM(hwnd.0 as usize), LPARAM(0));
+        }
+    }
+}
+
+/// A fullscreen window held in its zone goes to the whole display (state
+/// Ignored, so nothing pulls it back; its lock is kept aside), and the
+/// same keys put it back in its zone while it is still fullscreen.
+/// Frameless "stable" windows are stretched / shrunk the same way.
+fn fs_toggle(hwnd: HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::{GetAncestor, GA_ROOTOWNER};
+    with_ctx(|ctx| {
+        // the key may land on an owned popup: use the managed root
+        let owner = unsafe { GetAncestor(hwnd, GA_ROOTOWNER) };
+        let h = [hwnd, owner]
+            .into_iter()
+            .map(|w| w.0 as isize)
+            .find(|h| ctx.tracker.get(*h).is_some() || ctx.released_fs.contains_key(h))
+            .unwrap_or(hwnd.0 as isize);
+        let win = HWND(h as *mut _);
+        let mons = ctx.shared.monitors.read().unwrap().clone();
+        let gap = ctx.shared.config.read().unwrap().zone_gap;
+        let info = wininfo::inspect(win);
+        let Some(mon) = monitor::monitor_at(&info.rect, &mons).cloned() else { return };
+        match ctx.tracker.get(h).cloned() {
+            Some(WinState::Locked(l)) if l.kind == LockKind::ZoneFsMoved => {
+                let ok = place::move_exact(win, &mon.rect);
+                ctx.released_fs.insert(h, l);
+                ctx.tracker.set(h, WinState::Ignored);
+                log::line(format!("fs-toggle hwnd={h:#x} {} -> whole display ok={ok}", info.exe));
+            }
+            Some(WinState::Locked(mut l)) if l.kind == LockKind::ZoneFsBorderless => {
+                if l.target == mon.rect {
+                    // stretched by us before: back to the zone
+                    if let Some(orig) = ctx.released_fs.remove(&h) {
+                        let ok = place::move_exact(win, &orig.target.inflate(-gap));
+                        ctx.tracker.set(h, WinState::Locked(orig));
+                        log::line(format!("fs-toggle hwnd={h:#x} {} -> zone ok={ok}", info.exe));
+                    }
+                } else {
+                    ctx.released_fs.insert(h, l.clone());
+                    l.target = mon.rect;
+                    let ok = place::move_exact(win, &mon.rect);
+                    ctx.tracker.set(h, WinState::Locked(l));
+                    log::line(format!("fs-toggle hwnd={h:#x} {} -> whole display ok={ok}", info.exe));
+                }
+            }
+            _ => {
+                // released earlier and still fullscreen: back into its zone
+                let Some(mut l) = ctx.released_fs.remove(&h) else { return };
+                if !info.rect.approx_eq(&mon.rect, 8) {
+                    return; // left fullscreen meanwhile: nothing to put back
+                }
+                l.refights = 0;
+                l.first_refight = Instant::now();
+                let ok = place::hold_fullscreen(win, &l.target.inflate(-gap));
+                ctx.tracker.set(h, WinState::Locked(l));
+                log::line(format!("fs-toggle hwnd={h:#x} {} -> zone ok={ok}", info.exe));
+            }
+        }
+    });
+}
+
 pub fn stop(thread_id: u32) {
     unsafe {
         let _ = PostThreadMessageW(thread_id, WM_STOP, Default::default(), LPARAM(0));
@@ -949,6 +1031,7 @@ pub fn install_for_test(shared: Arc<Shared>) {
             resnap_until: None,
             drag: None,
             settle: Default::default(),
+            released_fs: Default::default(),
         });
     });
 }

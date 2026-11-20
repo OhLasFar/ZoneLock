@@ -97,6 +97,12 @@ pub struct HotkeyConfig {
     /// Snap the active window into the previous zone of its monitor.
     #[serde(default = "hk_prev_zone")]
     pub prev_zone: String,
+    /// Active window's fullscreen: inside its zone <-> whole display.
+    #[serde(default = "hk_fs_toggle")]
+    pub fs_toggle: String,
+    /// Show every shortcut in a card in the middle of the screen.
+    #[serde(default = "hk_cheatsheet")]
+    pub cheatsheet: String,
     /// Modifiers for "go to plan N" (the digit 1-9 is added).
     #[serde(default = "hk_plan_go")]
     pub plan_go: String,
@@ -113,6 +119,8 @@ impl Default for HotkeyConfig {
             next_preset: hk_next_preset(),
             next_zone: hk_next_zone(),
             prev_zone: hk_prev_zone(),
+            fs_toggle: hk_fs_toggle(),
+            cheatsheet: hk_cheatsheet(),
             plan_go: hk_plan_go(),
             plan_save: hk_plan_save(),
         }
@@ -136,6 +144,13 @@ fn hk_next_zone() -> String {
 }
 fn hk_prev_zone() -> String {
     "Win+Ctrl+Alt+Left".into()
+}
+fn hk_fs_toggle() -> String {
+    "Win+Ctrl+Alt+Up".into()
+}
+// Win+Alt+K is Windows' "mute in call"; H for help is free
+fn hk_cheatsheet() -> String {
+    "Win+Alt+H".into()
 }
 fn hk_plan_go() -> String {
     "Alt+Shift".into()

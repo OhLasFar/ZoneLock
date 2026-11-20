@@ -13,6 +13,8 @@ pub const ID_EDITOR: i32 = 2;
 pub const ID_NEXT_PRESET: i32 = 3;
 pub const ID_NEXT_ZONE: i32 = 4;
 pub const ID_PREV_ZONE: i32 = 5;
+pub const ID_FS_TOGGLE: i32 = 6;
+pub const ID_CHEATSHEET: i32 = 7;
 /// Plan hotkeys: ID_PLAN_GO + n / ID_PLAN_SAVE + n, n = 1..=9.
 pub const ID_PLAN_GO: i32 = 100;
 pub const ID_PLAN_SAVE: i32 = 200;
@@ -164,6 +166,8 @@ pub fn register_all(hwnd: HWND, cfg: &HotkeyConfig) -> Vec<i32> {
         (ID_NEXT_PRESET, "next_preset", &cfg.next_preset),
         (ID_NEXT_ZONE, "next_zone", &cfg.next_zone),
         (ID_PREV_ZONE, "prev_zone", &cfg.prev_zone),
+        (ID_FS_TOGGLE, "fs_toggle", &cfg.fs_toggle),
+        (ID_CHEATSHEET, "cheatsheet", &cfg.cheatsheet),
     ] {
         if let Some((mods, vk)) = parse(binding) {
             unsafe {

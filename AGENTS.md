@@ -44,6 +44,14 @@ injection.
   drawing through `uimodel::commit_editor_layout` (pending name -> user
   preset; free drawing -> name of the identical preset or "Custom") and
   `close_all` calls `webui::refresh()` so the panel updates.
+- `fs_toggle` hotkey (default Win+Ctrl+Alt+Up): UI thread posts
+  `WM_FS_TOGGLE` (thread message) to the watcher; `watcher::fs_toggle`
+  sends a held ZoneFsMoved window to the whole display (state -> Ignored,
+  lock kept in `Ctx.released_fs`) and back on the next press while still
+  fullscreen; frameless stable windows are stretched/shrunk.
+  `cheatsheet` hotkey (default Win+Alt+H, Win+Alt+K is Windows' mic
+  mute): `src/cheatsheet.rs`, GDI card centred on the display under the
+  mouse, no activation, Esc = temporary hotkey owned by the card.
 - Maximize is NEVER managed (user decision 2026-11-20): `engine::decide`
   returns `Forget` for any zoomed window (state dropped), except the
   frameless stable-fullscreen locks that own the frame

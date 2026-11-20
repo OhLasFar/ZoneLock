@@ -430,6 +430,8 @@ fn state_json(shared: &Shared) -> serde_json::Value {
         &cfg.hotkeys.next_preset,
         &cfg.hotkeys.next_zone,
         &cfg.hotkeys.prev_zone,
+        &cfg.hotkeys.fs_toggle,
+        &cfg.hotkeys.cheatsheet,
         &cfg.hotkeys.plan_go,
         &cfg.hotkeys.plan_save,
     ];

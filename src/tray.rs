@@ -17,6 +17,10 @@ pub enum UiCmd {
     NextPreset,
     NextZone,
     PrevZone,
+    /// Active window's fullscreen: in its zone <-> whole display.
+    FsToggle,
+    /// Show / hide the shortcuts card.
+    Cheatsheet,
     ToggleAutostart,
     OpenConfigDir,
     OpenSettings,
@@ -127,6 +131,8 @@ unsafe extern "system" fn wndproc(
                 crate::hotkeys::ID_NEXT_PRESET => Some(UiCmd::NextPreset),
                 crate::hotkeys::ID_NEXT_ZONE => Some(UiCmd::NextZone),
                 crate::hotkeys::ID_PREV_ZONE => Some(UiCmd::PrevZone),
+                crate::hotkeys::ID_FS_TOGGLE => Some(UiCmd::FsToggle),
+                crate::hotkeys::ID_CHEATSHEET => Some(UiCmd::Cheatsheet),
                 i if (crate::hotkeys::ID_PLAN_GO + 1..=crate::hotkeys::ID_PLAN_GO + 9).contains(&i) => {
                     Some(UiCmd::PlanGo((i - crate::hotkeys::ID_PLAN_GO) as u8))
                 }
