@@ -122,7 +122,10 @@ unsafe extern "system" fn hook_proc(
         }
         EVENT_SYSTEM_MOVESIZESTART => {
             let start = wininfo::inspect(hwnd).rect;
-            with_ctx(|ctx| ctx.drag = Some((hwnd.0 as isize, start, false)));
+            // a resize from an edge/corner must never "unsnap": mark the
+            // drag as already handled
+            let resize = grabbed_for_resize(hwnd, &start);
+            with_ctx(|ctx| ctx.drag = Some((hwnd.0 as isize, start, resize)));
             on_drag_start(hwnd);
         }
         EVENT_SYSTEM_MOVESIZEEND => {
@@ -166,6 +169,32 @@ fn restore_remembered(hwnd: HWND) {
     }
     let info = wininfo::inspect(hwnd);
     crate::memory::restore_new_window(hwnd, &info, &cfg, &mons);
+}
+
+/// Is this move/size loop a RESIZE (border or corner grabbed)? Asks the
+/// window what is under the cursor (WM_NCHITTEST, short timeout: the
+/// window's thread is entering its modal loop and still answers sent
+/// messages). Falls back to geometry: cursor on or just outside the
+/// visible frame edge = resize.
+fn grabbed_for_resize(hwnd: HWND, rect: &crate::rect::Rect) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetCursorPos, SendMessageTimeoutW, SMTO_ABORTIFHUNG, WM_NCHITTEST,
+    };
+    let mut p = windows::Win32::Foundation::POINT::default();
+    if unsafe { GetCursorPos(&mut p) }.is_err() {
+        return false;
+    }
+    let lp = LPARAM((((p.y as i16 as u16 as u32) << 16) | (p.x as i16 as u16 as u32)) as isize);
+    let mut res = 0usize;
+    let ok = unsafe {
+        SendMessageTimeoutW(hwnd, WM_NCHITTEST, WPARAM(0), lp, SMTO_ABORTIFHUNG, 60, Some(&mut res))
+    };
+    if ok.0 != 0 {
+        // HTLEFT..HTBOTTOMRIGHT = 10..=17 (HTTOP 12), HTBORDER 18
+        return crate::unsnap::is_resize_hit(res as i32);
+    }
+    let vis = crate::plans::visible_rect(hwnd, *rect);
+    crate::unsnap::near_edge(&vis, p.x, p.y, 6)
 }
 
 /// First real move of a drag on a window we snapped: give it back its

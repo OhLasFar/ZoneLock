@@ -113,6 +113,28 @@ impl Book {
     }
 }
 
+/// WM_NCHITTEST codes that start a resize: HTLEFT (10) .. HTBOTTOMRIGHT
+/// (17) and HTBORDER (18).
+pub fn is_resize_hit(code: i32) -> bool {
+    (10..=18).contains(&code)
+}
+
+/// Cursor on the visible frame edge, or up to `band` px outside it
+/// (where Windows 10/11 keep the invisible resize borders), or `band`/2
+/// inside: a resize grab.
+pub fn near_edge(vis: &Rect, x: i32, y: i32, band: i32) -> bool {
+    let inside_outer = x >= vis.left - band
+        && x <= vis.right + band
+        && y >= vis.top - band
+        && y <= vis.bottom + band;
+    let inner = band / 2;
+    let in_core = x > vis.left + inner
+        && x < vis.right - inner
+        && y > vis.top + inner
+        && y < vis.bottom - inner;
+    inside_outer && !in_core
+}
+
 static BOOK: Mutex<Option<Book>> = Mutex::new(None);
 
 pub fn with<R>(f: impl FnOnce(&mut Book) -> R) -> R {
@@ -144,6 +166,23 @@ mod tests {
         assert_eq!((r.width(), r.height()), (800, 600));
         assert_eq!(r.left, cx - 400);
         assert_eq!(r.top, 0);
+    }
+
+    #[test]
+    fn resize_grabs_are_recognised() {
+        // hit-test codes: caption / client move, borders resize
+        assert!(!is_resize_hit(2)); // HTCAPTION
+        assert!(!is_resize_hit(1)); // HTCLIENT
+        for c in 10..=18 {
+            assert!(is_resize_hit(c), "{c}");
+        }
+        // geometry fallback
+        let v = Rect::new(100, 100, 900, 700);
+        assert!(near_edge(&v, 96, 400, 6)); // just outside the left edge
+        assert!(near_edge(&v, 901, 699, 6)); // bottom-right corner
+        assert!(near_edge(&v, 500, 101, 6)); // top edge
+        assert!(!near_edge(&v, 500, 115, 6)); // title bar
+        assert!(!near_edge(&v, 50, 400, 6)); // far outside
     }
 
     #[test]
