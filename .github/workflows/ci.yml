@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build (release)
+        run: cargo build --release --locked
+      - name: Unit tests
+        # the integration tests drive real windows and need an interactive
+        # desktop; the pure logic is covered by the library tests
+        run: cargo test --lib --locked
+      - name: Size
+        shell: pwsh
+        run: "'zonelock.exe: {0:N0} KB' -f ((Get-Item target/release/zonelock.exe).Length / 1KB)"

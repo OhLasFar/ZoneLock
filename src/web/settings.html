@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:">
+<title>ZoneLock</title>
+<!--
+  ZoneLock settings. Visual system = Dispattern V2 (docs/UI.md): dp tokens,
+  signal theme only, Figtree / Syne / JetBrains Mono, surface cards,
+  tinted status badges. Static background only (no fog, grain or blur):
+  this window must stay cheap on low-end PCs.
+-->
+<style>
+/*@FONTS@*/
+:root{--dp-bg:#08090c;--dp-void:#050608;--dp-fg:#eceef2;--dp-card:#101218;--dp-elevated:#171a21;--dp-muted-bg:#1c2029;--dp-muted:#8b909c;--dp-primary:#3b82f6;--dp-primary-fg:#0b1222;--dp-accent:#3b82f629;--dp-ice:#93c5fd;--dp-ring:#60a5fa;--dp-border:#ffffff14;--dp-input:#ffffff1a;--dp-danger:#f43f5e;--dp-ok:#34d399;--dp-warn:#fbbf24;--dp-glow:59 130 246}
+:root{
+  --sans:"Figtree",ui-sans-serif,system-ui,sans-serif;
+  --display:"Syne","Figtree",ui-sans-serif,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px;
+  --ring:0 0 0 1px rgb(255 255 255 / .08);
+  --ring-hi:0 0 0 1px rgb(255 255 255 / .16);
+  --glow:0 8px 28px rgb(var(--dp-glow) / .32);
+  --ctl:44px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--dp-bg);color:var(--dp-fg);font:14px/1.5 var(--sans);overflow:hidden;
+  -webkit-user-select:none;user-select:none;
+  background-image:
+    radial-gradient(900px 420px at 50% -8%, rgb(var(--dp-glow) / .16), rgb(var(--dp-glow) / 0) 58%),
+    linear-gradient(to right, rgb(255 255 255 / .028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / .028) 1px, transparent 1px);
+  background-size:auto,48px 48px,48px 48px}
+::selection{background:rgb(var(--dp-glow) / .38)}
+input{font:inherit;color:inherit;-webkit-user-select:text;user-select:text}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus{outline:none}
+:focus-visible{outline:2px solid var(--dp-ring);outline-offset:2px}
+.press{transition:transform 150ms ease-out}
+.press:active{transform:scale(.96)}
+
+/* ---------- type ---------- */
+.eyebrow{font:500 11px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--dp-primary)}
+.mono{font-family:var(--mono)}
+
+/* ---------- frame ---------- */
+.app{display:grid;grid-template-columns:232px 1fr;height:100vh}
+.side{display:flex;flex-direction:column;gap:14px;padding:18px 14px;border-right:1px solid var(--dp-border);background:rgb(0 0 0 / .18);min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 6px}
+.logo{width:28px;height:28px;flex:none;display:block}
+.brand b{font:700 17px/1 var(--display)}
+.state{border-radius:var(--r-lg);background:var(--dp-card);box-shadow:var(--ring);padding:12px;display:flex;align-items:center;gap:10px}
+.state .t{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+.state .t div{font-weight:600;font-size:13px}
+.nav{display:flex;flex-direction:column;gap:2px;overflow-y:auto;flex:1;min-height:0}
+.nav .grp{font:500 10px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dp-muted);opacity:.7;padding:12px 10px 6px}
+.nav button{display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border-radius:var(--r-md);color:var(--dp-muted);text-align:left;font-weight:500}
+.nav button:hover{background:var(--dp-elevated);color:var(--dp-fg)}
+.nav button[aria-current=page]{background:var(--dp-accent);color:var(--dp-fg)}
+.nav button span:first-child{flex:1}
+.credit{font-size:12px;color:var(--dp-muted);padding:0 6px}
+.credit button{color:var(--dp-ice);font-weight:600}
+.credit button:hover{color:var(--dp-fg)}
+
+.pane{display:flex;flex-direction:column;min-width:0;min-height:0}
+.head{padding:26px 32px 18px}
+.head h1{font:700 28px/1.1 var(--display);margin-top:8px}
+.head p{color:var(--dp-muted);margin-top:6px;max-width:560px}
+main{flex:1;overflow-y:auto;padding:0 32px 32px;min-height:0}
+main::-webkit-scrollbar{width:10px}
+main::-webkit-scrollbar-thumb{background:var(--dp-muted-bg);border-radius:10px;border:3px solid var(--dp-bg)}
+.panel{display:flex;flex-direction:column;gap:16px;max-width:820px}
+
+/* ---------- surface card ---------- */
+.card{background:var(--dp-card);box-shadow:var(--ring);border-radius:var(--r-lg)}
+.card-h{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--dp-border)}
+.card-h .tt{flex:1;min-width:0}
+.card-h h3{font:700 16px/1.2 var(--display);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card-h p{color:var(--dp-muted);font-size:13px;margin-top:3px}
+.card-b{padding:16px 20px}
+.card-b.flush{padding:0}
+
+/* ---------- toggle tiles (dispeek recipe) ---------- */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-md);box-shadow:var(--ring);background:rgb(255 255 255 / .015);cursor:pointer}
+.tile:hover{box-shadow:var(--ring-hi)}
+.tile .t{flex:1;min-width:0}
+.tile .t div{font-weight:600;font-size:13.5px}
+.tile .t small{display:block;color:var(--dp-muted);font-size:12px;line-height:1.35;margin-top:2px}
+
+/* ---------- switch ---------- */
+.sw{position:relative;flex:none;width:44px;height:24px;border-radius:99px;background:var(--dp-muted-bg);box-shadow:var(--ring);transition:background-color 150ms}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#e8ecf2;transition:transform 150ms ease-out}
+.sw[aria-checked=true]{background:var(--dp-primary)}
+.sw[aria-checked=true]::after{transform:translateX(20px);background:#fff}
+
+/* ---------- rows ---------- */
+.row{display:flex;align-items:center;gap:16px;padding:14px 20px;border-top:1px solid var(--dp-border)}
+.row:first-child{border-top:0}
+.row .t{flex:1;min-width:0}
+.row .t div{font-weight:600;font-size:13.5px}
+.row .t small{display:block;color:var(--dp-muted);font-size:12px}
+.row .ctl{display:flex;align-items:center;gap:10px}
+.row .st{width:78px;display:flex;justify-content:flex-end}
+
+/* ---------- fields ---------- */
+.in{height:var(--ctl);padding:0 12px;border-radius:var(--r-md);background:var(--dp-card);border:1px solid var(--dp-input);min-width:0;font-size:14px}
+.in::placeholder{color:var(--dp-muted)}
+.in:hover{border-color:rgb(255 255 255 / .18)}
+.in:focus{border-color:color-mix(in srgb,var(--dp-primary) 50%,transparent);box-shadow:0 0 0 3px var(--dp-accent)}
+.in.bad{border-color:var(--dp-danger)}
+.step{display:flex;align-items:center;gap:6px}
+.step .in{width:72px;text-align:center;font-family:var(--mono)}
+.unit{font:12px var(--mono);color:var(--dp-muted)}
+
+/* key capture box */
+.cap{height:var(--ctl);min-width:210px;padding:0 10px;border-radius:var(--r-md);background:var(--dp-card);border:1px solid var(--dp-input);display:flex;align-items:center;gap:5px;cursor:pointer;text-align:left}
+.cap:hover{border-color:rgb(255 255 255 / .18)}
+.cap.small{min-width:0;width:100%}
+.cap kbd{font:600 12px/1 var(--mono);padding:5px 7px;border-radius:var(--r-sm);background:var(--dp-elevated);box-shadow:var(--ring),0 2px 0 rgb(0 0 0 / .4);color:var(--dp-fg)}
+.cap .plus{color:var(--dp-muted);font:12px var(--mono)}
+.cap .ph{color:var(--dp-muted);font-size:13px}
+.cap.rec{border-color:var(--dp-primary);box-shadow:0 0 0 3px var(--dp-accent)}
+.cap.rec .ph{color:var(--dp-primary)}
+.cap.bad{border-color:var(--dp-danger)}
+.cap.warn{border-color:color-mix(in srgb,var(--dp-warn) 60%,transparent)}
+
+/* ---------- buttons ---------- */
+.btn{height:var(--ctl);padding:0 16px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:14px;white-space:nowrap}
+.btn.primary{background:var(--dp-primary);color:var(--dp-primary-fg);box-shadow:var(--glow)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.outline{box-shadow:0 0 0 1px var(--dp-input);background:rgb(0 0 0 / .15)}
+.btn.outline:hover{background:var(--dp-elevated)}
+.btn.ghost{color:var(--dp-muted)}
+.btn.ghost:hover{background:var(--dp-elevated);color:var(--dp-fg)}
+.btn.danger{color:var(--dp-danger);box-shadow:0 0 0 1px color-mix(in srgb,var(--dp-danger) 35%,transparent)}
+.btn.danger:hover{background:color-mix(in srgb,var(--dp-danger) 12%,transparent)}
+.btn.sm{height:34px;padding:0 12px;font-size:13px}
+.btn.ico{width:var(--ctl);padding:0;font-size:18px}
+
+/* ---------- badges (tinted, colour-coded) ---------- */
+.b{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:var(--r-sm);font:600 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.b-ok{background:color-mix(in srgb,var(--dp-ok) 15%,transparent);color:var(--dp-ok)}
+.b-warn{background:color-mix(in srgb,var(--dp-warn) 15%,transparent);color:var(--dp-warn)}
+.b-bad{background:color-mix(in srgb,var(--dp-danger) 15%,transparent);color:var(--dp-danger)}
+.b-ice{background:var(--dp-accent);color:var(--dp-ice)}
+.b-promo{background:color-mix(in srgb,var(--dp-primary) 15%,transparent);color:var(--dp-primary)}
+.b-muted{background:var(--dp-muted-bg);color:var(--dp-muted)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* ---------- tables ---------- */
+.tbl .tr{display:grid;gap:10px;align-items:center;padding:8px 20px;border-top:1px solid var(--dp-border)}
+.tbl .tr:hover{background:var(--dp-elevated)}
+.tbl .th{display:grid;gap:10px;padding:10px 20px;font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dp-muted)}
+.tbl .empty{padding:18px 20px;border-top:1px solid var(--dp-border);color:var(--dp-muted);font-size:13px}
+.tbl .in{height:36px;background:transparent;border-color:transparent}
+.tbl .in:hover{border-color:var(--dp-input)}
+.tbl .in:focus{background:var(--dp-card)}
+.tbl .cap{height:36px}
+.c-keys{grid-template-columns:1fr 150px 70px 36px}
+.c-keys .sw{justify-self:start}
+.c-one{grid-template-columns:1fr 36px}
+.c-preset{grid-template-columns:96px 1fr 90px 70px 84px}
+.x{width:36px;height:36px;border-radius:var(--r-md);color:var(--dp-muted);display:grid;place-items:center}
+.x:hover{color:var(--dp-danger);background:color-mix(in srgb,var(--dp-danger) 10%,transparent)}
+.x svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round}
+
+/* ---------- displays ---------- */
+.preview{max-width:440px}
+.stage{position:relative;border-radius:var(--r-md);background:var(--dp-void);box-shadow:var(--ring);overflow:hidden}
+.zone{position:absolute;border-radius:6px;border:1.5px solid var(--zc);background:color-mix(in srgb,var(--zc) 13%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;overflow:hidden}
+.zone b{font:700 13px/1 var(--mono);color:var(--zc)}
+.zone span{font:500 10px/1 var(--mono);color:color-mix(in srgb,var(--zc) 70%,var(--dp-fg))}
+.dims{display:flex;justify-content:space-between;gap:8px;margin-top:8px;font:11px var(--mono);color:var(--dp-muted)}
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:8px}
+.chip{position:relative;display:flex;flex-direction:column;gap:6px;padding:7px;border-radius:var(--r-md);box-shadow:var(--ring);background:rgb(255 255 255 / .015);text-align:left;min-width:0}
+.chip .corner{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;background:color-mix(in srgb,var(--dp-ok) 18%,var(--dp-card));color:var(--dp-ok);z-index:1}
+.chip .corner svg{width:11px;height:11px;fill:currentColor}
+.chip:hover{box-shadow:var(--ring-hi);background:var(--dp-elevated)}
+.chip[aria-pressed=true]{box-shadow:0 0 0 1.5px var(--dp-primary);background:var(--dp-accent)}
+.chip .nm{font-size:12px;font-weight:600;color:var(--dp-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip[aria-pressed=true] .nm{color:var(--dp-fg)}
+.chip .nm.user{color:var(--dp-ok)}
+.mini{position:relative;height:40px;border-radius:5px;background:var(--dp-void);box-shadow:var(--ring)}
+.mini i{position:absolute;border-radius:2px;border:1px solid var(--zc);background:color-mix(in srgb,var(--zc) 22%,transparent)}
+.lbl{font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dp-muted);margin:18px 0 10px;display:flex;gap:8px;align-items:center}
+.note{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;color:var(--dp-muted)}
+.newform{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding:12px;border-radius:var(--r-md);background:var(--dp-accent)}
+.newform .in{flex:1;min-width:180px}
+.newform .hint{width:100%;font-size:12px;color:var(--dp-muted)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
+.saveas{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.saveas .in{flex:1;min-width:160px}
+
+
+/* ---------- plans ---------- */
+.plan{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:16px;align-items:center;padding:14px 20px;border-top:1px solid var(--dp-border)}
+.plan:first-child{border-top:0}
+.plan .num{width:40px;height:40px;border-radius:var(--r-md);display:grid;place-items:center;font:700 18px/1 var(--mono);background:var(--dp-muted-bg);color:var(--dp-muted)}
+.plan.on .num{background:var(--dp-accent);color:var(--dp-primary)}
+.plan .what{display:flex;gap:12px;align-items:center;min-width:0}
+.plan .minis{display:flex;gap:6px;flex:none}
+.plan .mini{width:84px;height:48px}
+.plan .apps{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
+.plan .app{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:var(--r-sm);background:var(--dp-elevated);box-shadow:var(--ring);font-size:12px;font-weight:600;white-space:nowrap}
+.plan .app i{width:8px;height:8px;border-radius:2px;background:var(--zc)}
+.plan .empty-note{color:var(--dp-muted);font-size:12.5px}
+.plan .acts{margin:0;flex-wrap:nowrap}
+.keyhint{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--dp-muted)}
+.keyhint kbd{font:600 11.5px/1 var(--mono);padding:4px 6px;border-radius:var(--r-sm);background:var(--dp-elevated);box-shadow:var(--ring);color:var(--dp-fg)}
+
+/* ---------- toasts ---------- */
+.toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:9;pointer-events:none}
+.toast{display:flex;align-items:center;gap:10px;min-width:220px;max-width:420px;padding:11px 14px;border-radius:var(--r-lg);background:var(--dp-elevated);box-shadow:var(--ring),0 12px 32px rgb(0 0 0 / .45);font-size:13px;pointer-events:auto}
+.toast .dot{flex:none;width:8px;height:8px}
+.toast.ok .dot{background:var(--dp-ok)}
+.toast.bad .dot{background:var(--dp-danger)}
+.about p{color:var(--dp-muted);font-size:13px;line-height:1.6}
+.about p + p{margin-top:8px}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="0.5" y="0.5" width="23" height="23" rx="5" fill="#0b1222" stroke="#ffffff1f"/><rect x="3" y="3" width="10" height="18" rx="1.5" fill="#3b82f6"/><rect x="14.5" y="3" width="6.5" height="8.5" rx="1.5" fill="#93c5fd"/><rect x="14.5" y="12.5" width="6.5" height="8.5" rx="1.5" fill="#3b82f6"/></svg><b>ZoneLock</b></div>
+    <div class="state">
+      <div class="t"><div>Containment</div><span class="b b-muted" id="m-badge"><span class="dot"></span><span>…</span></span></div>
+      <button class="sw press" role="switch" aria-checked="false" data-k="enabled" aria-label="Containment"></button>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="credit">built by <button id="credit">@LasFar on X</button></div>
+  </aside>
+  <div class="pane">
+    <div class="head"><div class="eyebrow" id="h-eye"></div><h1 id="h-title"></h1><p id="h-desc"></p></div>
+    <main id="main"></main>
+  </div>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- ===== component templates (docs/UI.md) ===== -->
+<template id="t-card"><section class="card"><div class="card-h"><div class="tt"><h3></h3><p></p></div><div class="ha"></div></div><div class="card-b"></div></section></template>
+<template id="t-tile"><div class="tile"><div class="t"><div></div><small></small></div><button class="sw press" role="switch" aria-checked="false"></button></div></template>
+<template id="t-row"><div class="row"><div class="t"><div></div><small></small></div><div class="ctl"></div></div></template>
+<template id="t-x"><button class="x" title="Remove" aria-label="Remove"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></template>
+
+<script>
+(() => {
+'use strict';
+const wv = window.chrome && window.chrome.webview;
+const send = m => wv && wv.postMessage(m);
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const tpl = id => document.getElementById(id).content.firstElementChild.cloneNode(true);
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* per-viewer convenience only */ } },
+};
+
+let S = null;   // last state confirmed by the host
+
+// ---------- colour coding ----------
+// Zones are coded by their index on every drawing (data colours, theme-independent).
+const ZC = ['#3b82f6', '#34d399', '#fbbf24', '#a78bfa', '#f43f5e', '#22d3ee', '#f97316', '#e879f9'];
+
+// ---------- components ----------
+function Card(title, desc, ...actions) {
+  const c = tpl('t-card');
+  $('h3', c).textContent = title;
+  if (desc) $('p', c).textContent = desc; else $('p', c).remove();
+  if (actions.length) $('.ha', c).append(...actions); else $('.ha', c).remove();
+  return c;
+}
+const body = (card, flush) => { const b = $('.card-b', card); if (flush) b.classList.add('flush'); return b; };
+function Badge(kind, text, dot) {
+  const b = el('span', 'b b-' + kind);
+  if (dot) b.appendChild(el('span', 'dot'));
+  b.appendChild(el('span', '', text));
+  return b;
+}
+function Switch(key, label) {
+  const s = el('button', 'sw press'); s.setAttribute('role', 'switch'); s.setAttribute('aria-checked', 'false');
+  s.dataset.k = key; s.setAttribute('aria-label', label);
+  return s;
+}
+function Tile(key, label, hint) {
+  const t = tpl('t-tile');
+  $('.t div', t).textContent = label; $('small', t).textContent = hint;
+  const s = $('.sw', t); s.dataset.k = key; s.setAttribute('aria-label', label);
+  t.addEventListener('click', e => { if (!e.target.closest('.sw')) s.click(); });
+  return t;
+}
+function Row(label, hint, ...controls) {
+  const r = tpl('t-row');
+  $('.t div', r).textContent = label;
+  if (hint) $('small', r).textContent = hint; else $('small', r).remove();
+  $('.ctl', r).append(...controls);
+  return r;
+}
+function Btn(text, variant, onClick) {
+  const b = el('button', 'btn press ' + (variant || 'outline'), text);
+  if (onClick) b.addEventListener('click', onClick);
+  return b;
+}
+function Input(cls, ph, value) {
+  const i = el('input', 'in ' + (cls || ''));
+  i.type = 'text'; i.spellcheck = false; i.placeholder = ph || ''; i.value = value ?? '';
+  return i;
+}
+function Mini(zones) {
+  const m = el('div', 'mini');
+  zones.forEach((z, i) => {
+    const [l, t, r, b] = z.rect, d = el('i');
+    d.style.cssText = `--zc:${ZC[i % ZC.length]};left:calc(${l * 100}% + 3px);top:calc(${t * 100}% + 3px);width:calc(${(r - l) * 100}% - 6px);height:calc(${(b - t) * 100}% - 6px)`;
+    m.appendChild(d);
+  });
+  return m;
+}
+function Table(cols, heads, empty) {
+  const t = el('div', 'tbl'); t.dataset.cols = cols; t.dataset.empty = empty;
+  const th = el('div', 'th ' + cols); heads.forEach(h => th.appendChild(el('span', '', h))); th.appendChild(el('span'));
+  t.appendChild(th);
+  return t;
+}
+function emptyCheck(t) { if (!$('.tr', t) && !$('.empty', t)) t.appendChild(el('div', 'empty', t.dataset.empty)); }
+function TableRow(t, cells) {
+  $('.empty', t)?.remove();
+  const tr = el('div', 'tr ' + t.dataset.cols);
+  tr.append(...cells);
+  const x = tpl('t-x');
+  x.addEventListener('click', () => { tr.remove(); emptyCheck(t); apply(); });
+  tr.appendChild(x);
+  t.appendChild(tr);
+  return tr;
+}
+
+// ---------- key capture (any layout: stores the Windows virtual key) ----------
+const NAMES = { 8: 'Backspace', 9: 'Tab', 13: 'Enter', 19: 'Pause', 27: 'Esc', 32: 'Space', 33: 'PageUp', 34: 'PageDown', 35: 'End', 36: 'Home', 37: 'Left', 38: 'Up', 39: 'Right', 40: 'Down', 44: 'PrintScreen', 45: 'Insert', 46: 'Delete', 106: 'NumMultiply', 107: 'NumAdd', 109: 'NumSubtract', 110: 'NumDecimal', 111: 'NumDivide', 145: 'ScrollLock', 173: 'VolumeMute', 174: 'VolumeDown', 175: 'VolumeUp', 176: 'MediaNext', 177: 'MediaPrev', 178: 'MediaStop', 179: 'MediaPlayPause' };
+const MODKEYS = new Set(['Control', 'Alt', 'Shift', 'Meta', 'OS', 'AltGraph']);
+const FUNC_ONLY = /^(F\d+|Pause|PrintScreen|ScrollLock|Volume\w+|Media\w+)$/;
+function vkName(vk) {
+  if ((vk >= 48 && vk <= 57) || (vk >= 65 && vk <= 90)) return String.fromCharCode(vk);
+  if (vk >= 96 && vk <= 105) return 'Num' + (vk - 96);
+  if (vk >= 112 && vk <= 135) return 'F' + (vk - 111);
+  return NAMES[vk] || 'VK_' + vk.toString(16).toUpperCase().padStart(2, '0');
+}
+const keyLabel = (e, name) => (name.startsWith('VK_') && e.key && e.key.length === 1) ? e.key.toUpperCase() : name;
+const modsOf = e => [e.metaKey && 'Win', e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean);
+const PH = { combo: ['Set shortcut', 'Press the combination…'], key: ['Set key', 'Press a key…'], mods: ['Set modifiers', 'Hold modifiers + any digit…'] };
+const DIGITS = '1…9';
+
+function renderKeys(box, label, placeholder) {
+  box.textContent = '';
+  if (!label) { box.appendChild(el('span', 'ph', placeholder)); return; }
+  label.split('+').forEach((p, i) => { if (i) box.appendChild(el('span', 'plus', '+')); box.appendChild(el('kbd', '', p)); });
+}
+let rec = null;   // capture box currently recording
+// mode 'combo' = global shortcut, 'key' = single fullscreen exit key,
+// 'mods' = modifiers only (plan shortcuts: the digit 1-9 is implied)
+function KeyBox(mode, value, label) {
+  const box = el('button', 'cap' + (mode === 'key' ? ' small' : ''));
+  box.dataset.mode = mode; box.dataset.value = value || ''; box.dataset.label = label || value || '';
+  box.setAttribute('aria-label', mode === 'key' ? 'Exit key: click, then press a key' : 'Shortcut: click, then press the combination');
+  renderKeys(box, box.dataset.label, PH[mode][0]);
+  box.addEventListener('click', () => startRec(box));
+  return box;
+}
+function startRec(box) {
+  if (rec === box) return;
+  if (rec) stopRec();
+  rec = box; box.classList.add('rec'); box.classList.remove('bad');
+  renderKeys(box, '', PH[box.dataset.mode][1]);
+  if (box.dataset.mode !== 'key') send({ type: 'capture', on: true });
+}
+function stopRec() {
+  const box = rec; if (!box) return;
+  rec = null; box.classList.remove('rec');
+  if (box.dataset.mode !== 'key') send({ type: 'capture', on: false });
+  renderKeys(box, box.dataset.label, PH[box.dataset.mode][0]);
+}
+document.addEventListener('keydown', e => {
+  if (!rec) return;
+  e.preventDefault(); e.stopPropagation();
+  if (e.keyCode === 229) return;                                   // IME composition
+  const mods = modsOf(e), box = rec, combo = box.dataset.mode === 'combo', modsOnly = box.dataset.mode === 'mods';
+  if (e.key === 'Escape' && !mods.length) return stopRec();
+  if (MODKEYS.has(e.key)) { if (combo || modsOnly) renderKeys(box, mods.join('+') + '+' + (modsOnly ? DIGITS : '…')); return; }
+  if (modsOnly) {
+    if (!mods.length) { toast('Hold at least one of Ctrl, Alt, Shift or Win, then press a digit.', 'bad'); return; }
+    box.dataset.value = mods.join('+');
+    box.dataset.label = mods.join('+') + '+' + DIGITS;
+    stopRec(); apply(); return;
+  }
+  const name = vkName(e.keyCode), label = keyLabel(e, name);
+  if (combo && !mods.length && !FUNC_ONLY.test(name)) {
+    toast('Add Ctrl, Alt, Shift or Win. A plain key would be taken in every app.', 'bad'); return;
+  }
+  box.dataset.value = combo ? [...mods, name].join('+') : name;
+  box.dataset.label = combo ? [...mods, label].join('+') : label;
+  stopRec();
+  apply();
+}, true);
+document.addEventListener('keyup', e => {
+  if (!rec) return;
+  e.preventDefault();
+  if (rec.dataset.mode !== 'key' && !modsOf(e).length) renderKeys(rec, '', PH[rec.dataset.mode][1]);
+}, true);
+document.addEventListener('mousedown', e => { if (rec && !rec.contains(e.target)) stopRec(); }, true);
+window.addEventListener('blur', stopRec);
+
+// ---------- toasts ----------
+function toast(text, kind) {
+  const t = el('div', 'toast ' + (kind || 'ok'));
+  t.append(el('span', 'dot'), el('span', '', text));
+  const box = $('#toasts'); box.appendChild(t);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => t.remove(), kind === 'bad' ? 5000 : 2200);
+}
+
+// ---------- pages ----------
+const PAGES = [
+  { id: 'general', group: 'Zones', title: 'General', desc: 'How ZoneLock keeps your windows in their zones.' },
+  { id: 'displays', group: 'Zones', title: 'Displays', desc: 'Each display keeps its own layout. Pick a preset, or make a new one.' },
+  { id: 'plans', group: 'Workspace', title: 'Plans', desc: 'Save the apps you have open as a plan, then jump between plans with a shortcut. Apps that are not running are launched and put back in place.' },
+  { id: 'shortcuts', group: 'Input', title: 'Shortcuts', desc: 'Click a field, then press the keys. Works with any keyboard layout.' },
+  { id: 'fullscreen', group: 'Apps', title: 'Fullscreen apps', desc: 'Apps stay in real fullscreen inside their zone. If one flickers when you click it (Chrome, Edge, Discord and other Chromium apps), turn on Stable for it.' },
+  { id: 'exclusions', group: 'Apps', title: 'Exclusions', desc: 'Programs ZoneLock never touches. Exclusive-fullscreen games are already ignored.' },
+  { id: 'system', group: 'App', title: 'System', desc: 'Logs, config folder and the app itself.' },
+];
+const panels = {};
+function buildNav() {
+  const nav = $('#nav'); let grp = null;
+  for (const p of PAGES) {
+    if (p.group !== grp) { grp = p.group; nav.appendChild(el('div', 'grp', grp)); }
+    const b = el('button', 'press'); b.dataset.page = p.id;
+    b.append(el('span', '', p.title), el('span', 'cnt'));
+    b.addEventListener('click', () => show(p.id));
+    nav.appendChild(b);
+    const panel = el('div', 'panel'); panel.id = 'p-' + p.id; panel.hidden = true;
+    $('#main').appendChild(panel); panels[p.id] = panel;
+  }
+}
+function show(id) {
+  const p = PAGES.find(x => x.id === id) || PAGES[0];
+  $$('#nav button').forEach(b => b.dataset.page === p.id ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  for (const k in panels) panels[k].hidden = k !== p.id;
+  $('#h-eye').textContent = p.group;
+  $('#h-title').textContent = p.title;
+  $('#h-desc').textContent = p.desc;
+  $('#main').scrollTop = 0;
+  store.set('zl-page', p.id);
+}
+function setCount(id, badge) {
+  const c = $(`#nav [data-page="${id}"] .cnt`); c.textContent = '';
+  if (badge) c.appendChild(badge);
+}
+
+function buildGeneral() {
+  const beh = Card('Behaviour', 'Every change applies immediately.');
+  const tiles = el('div', 'tiles');
+  tiles.append(
+    Tile('shift_snap', 'Shift + drag to snap', 'Hold Shift while moving a window to show the zones, drop on one to snap.'),
+    Tile('remember_positions', 'Reopen apps where you left them', 'A closed app comes back where it was, unless another of its windows is already open.'),
+    Tile('autostart', 'Start with Windows', 'Per user, no admin rights.'),
+  );
+  body(beh).appendChild(tiles);
+  const gap = Input('', '0'); gap.dataset.k = 'zone_gap'; gap.inputMode = 'numeric';
+  const bump = d => { gap.value = Math.max(0, Math.min(200, (parseInt(gap.value, 10) || 0) + d)); apply(); };
+  const step = el('div', 'step');
+  step.append(Btn('−', 'outline ico', () => bump(-2)), gap, Btn('+', 'outline ico', () => bump(2)), el('span', 'unit', 'px'));
+  const zones = Card('Zones', null);
+  body(zones, true).appendChild(Row('Zone gap', 'Space kept inside every zone edge, 0 to 200 px.', step));
+  panels.general.append(beh, zones);
+}
+
+function buildShortcuts() {
+  const c = Card('Global shortcuts', 'Esc cancels a recording. Shortcuts Windows already uses cannot be recorded.');
+  const b = body(c, true);
+  for (const [k, label, hint] of [
+    ['toggle', 'Pause / resume', 'Turns containment on or off.'],
+    ['editor', 'Zone editor', 'Draw zones over every display.'],
+    ['next_preset', 'Next preset', 'On the display under the mouse.'],
+    ['next_zone', 'Window to next zone', 'Moves the active window.'],
+    ['prev_zone', 'Window to previous zone', 'Moves the active window back.'],
+  ]) {
+    const box = KeyBox('combo', ''); box.dataset.k = 'hotkeys.' + k;
+    const st = el('span', 'st'); st.dataset.st = k;
+    b.appendChild(Row(label, hint, box, st));
+  }
+  const pc = Card('Plans', 'Hold the modifiers and press any digit: the same modifiers then work with 1 to 9.');
+  const pb = body(pc, true);
+  for (const [k, label, hint] of [
+    ['plan_go', 'Go to plan 1–9', 'Brings that plan\'s apps back, minimizes the others.'],
+    ['plan_save', 'Save plan 1–9', 'Saves the apps open now into that plan.'],
+  ]) {
+    const box = KeyBox('mods', ''); box.dataset.k = 'hotkeys.' + k;
+    const st = el('span', 'st'); st.dataset.st = k;
+    pb.appendChild(Row(label, hint, box, st));
+  }
+  panels.shortcuts.append(c, pc);
+}
+
+function buildFullscreen() {
+  const t = Table('c-keys', ['Program', 'Exit key', 'Stable'], 'No program listed. Unlisted apps are held in real fullscreen.'); t.id = 'keys';
+  const add = Btn('+ Add app', 'outline sm', () => $('input', keyRow({ exe: '', key: '' })).focus());
+  const c = Card('Per-app fullscreen', 'Stable: the app leaves its own fullscreen (ZoneLock sends its exit key) and fills the zone without a frame. No flicker, but browser bars stay visible. Off: real fullscreen inside the zone.', add);
+  body(c, true).appendChild(t);
+  panels.fullscreen.appendChild(c);
+}
+function keyRow(r) {
+  const st = Switch('', 'Stable fullscreen for ' + (r.exe || 'this app'));
+  st.classList.add('stable'); st.setAttribute('aria-checked', !!r.stable);
+  return TableRow($('#keys'), [Input('mono', 'program.exe', r.exe), KeyBox('key', r.key, S && S.key_labels[r.key]), st]);
+}
+
+function buildExclusions() {
+  const tp = Table('c-one', ['Program'], 'No excluded program.'); tp.id = 'procs';
+  const cp = Card('Programs', 'Matched by executable name, case-insensitive.',
+    Btn('+ Add program', 'outline sm', () => $('input', TableRow(tp, [Input('mono', 'game.exe')])).focus()));
+  body(cp, true).appendChild(tp);
+  const tc = Table('c-one', ['Class prefix'], 'None.'); tc.id = 'classes';
+  const cc = Card('Window classes', 'Advanced: windows whose class name starts with one of these.',
+    Btn('+ Add prefix', 'outline sm', () => $('input', TableRow(tc, [Input('mono', 'Qt5')])).focus()));
+  body(cc, true).appendChild(tc);
+  panels.exclusions.append(cp, cc);
+}
+
+function buildSystem() {
+  const mt = Card('Maintenance', null);
+  body(mt, true).append(
+    Row('Verbose log', 'Writes zonelock.log in the config folder, rotated at 1 MB.', Switch('log_enabled', 'Verbose log')),
+    Row('Config folder', '%APPDATA%\\ZoneLock', Btn('Open folder', 'outline', () => send({ type: 'open_config_dir' }))),
+    Row('Quit ZoneLock', 'Stops containment until the next start.', Btn('Quit', 'danger', () => send({ type: 'quit' }))),
+  );
+  const ab = Card('About', null);
+  const abb = body(ab); abb.classList.add('about');
+  abb.append(
+    el('p', '', 'ZoneLock keeps maximized and fullscreen windows inside the zones of each display.'),
+    el('p', '', 'Local only: no account, no telemetry, no network. No DLL injection, no admin rights.'),
+  );
+  const v = el('p', 'mono'); v.id = 'aboutver'; abb.appendChild(v);
+  panels.system.append(mt, ab);
+}
+
+// ---------- displays ----------
+const FR = [[1, 2], [1, 3], [2, 3], [1, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5], [1, 6], [5, 6]];
+function frac(v) {
+  if (Math.abs(v - 1) < .004) return 'full';
+  for (const [a, b] of FR) if (Math.abs(v - a / b) < .004) return a + '/' + b;
+  return Math.round(v * 100) + '%';
+}
+let saving = null;    // display id whose "save custom as preset" form is open
+let creating = null;  // display id whose "new preset" form is open
+const STAR = '<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z"/></svg>';
+
+function NameForm(cls, value, button, onGo, hint) {
+  const f = el('div', cls);
+  const nf = Input('', 'Preset name', value); nf.maxLength = 40; nf.dataset.k = 'preset_name';
+  const go = () => onGo(nf.value);
+  const cancel = () => { creating = null; saving = null; renderDisplays(); };
+  nf.addEventListener('keydown', e => { if (e.key === 'Enter') go(); if (e.key === 'Escape') { e.stopPropagation(); cancel(); } });
+  f.append(nf, Btn(button, 'primary', go), Btn('Cancel', 'ghost', cancel));
+  if (hint) f.appendChild(el('div', 'hint', hint));
+  setTimeout(() => { nf.focus(); nf.select(); });
+  return f;
+}
+function Chip(m, pr) {
+  const ch = el('button', 'chip press'); ch.title = pr.builtin ? pr.name : pr.name + ' (yours)';
+  ch.setAttribute('aria-pressed', pr.name === m.layout.name);
+  if (!pr.builtin) { const c = el('span', 'corner'); c.innerHTML = STAR; ch.appendChild(c); }
+  ch.append(Mini(pr.zones), el('span', 'nm' + (pr.builtin ? '' : ' user'), pr.name));
+  ch.addEventListener('click', () => { if (pr.name !== m.layout.name) send({ type: 'use_preset', monitor: m.id, name: pr.name }); });
+  return ch;
+}
+function renderDisplays() {
+  const p = panels.displays; p.textContent = '';
+  const mine = S.presets.filter(x => !x.builtin), builtin = S.presets.filter(x => x.builtin);
+  for (const m of S.monitors) {
+    const c = Card(m.label, null, Btn('+ New preset', 'primary sm', () => { creating = m.id; saving = null; renderDisplays(); }));
+    $('h3', c).append(Badge('muted', `${m.width}×${m.height}`));
+    if (m.primary) $('h3', c).append(Badge('ice', 'Primary'));
+    const custom = !S.presets.some(x => x.name === m.layout.name);
+    $('h3', c).append(custom ? Badge('warn', 'Custom') : m.layout.builtin ? Badge('promo', 'Preset') : Badge('ok', 'Yours'));
+    const b = body(c);
+
+    if (creating === m.id) {
+      b.appendChild(NameForm('newform', '', 'Draw zones', name => send({ type: 'new_preset', monitor: m.id, name }),
+        'The zone editor opens over the screen. Draw the zones, press Enter to save the preset, Esc to cancel.'));
+    }
+
+    // preview on top
+    const pv = el('div', 'preview');
+    const st = el('div', 'stage'); st.style.aspectRatio = `${m.width} / ${m.height}`;
+    m.layout.zones.forEach((z, i) => {
+      const [l, t, r, bt] = z.rect, d = el('div', 'zone');
+      d.style.cssText = `--zc:${ZC[i % ZC.length]};left:calc(${l * 100}% + 4px);top:calc(${t * 100}% + 4px);width:calc(${(r - l) * 100}% - 8px);height:calc(${(bt - t) * 100}% - 8px)`;
+      const w = frac(r - l), h = frac(bt - t);
+      d.append(el('b', '', String(i + 1)), el('span', '', h === 'full' ? w : `${w} × ${h}`));
+      st.appendChild(d);
+    });
+    const n = m.layout.zones.length;
+    const dims = el('div', 'dims'); dims.append(el('span', '', m.layout.name), el('span', '', `${n} zone${n === 1 ? '' : 's'}`));
+    pv.append(st, dims);
+    b.appendChild(pv);
+    if (custom) {
+      if (saving === m.id) {
+        b.appendChild(NameForm('saveas', '', 'Save preset', name => send({ type: 'save_preset', monitor: m.id, name })));
+      } else {
+        const note = el('div', 'note');
+        note.append(el('span', '', 'Drawn in the editor, not saved as a preset yet.'),
+          Btn('Save as preset', 'outline sm', () => { saving = m.id; creating = null; renderDisplays(); }));
+        b.appendChild(note);
+      }
+    }
+
+    // presets below: yours first (star in the corner), then built-in
+    if (mine.length) {
+      const lb = el('div', 'lbl'); lb.append(el('span', '', 'Your presets'));
+      b.appendChild(lb);
+      const g = el('div', 'chips'); mine.forEach(pr => g.appendChild(Chip(m, pr))); b.appendChild(g);
+    }
+    b.appendChild(el('div', 'lbl', mine.length ? 'Built-in' : 'Presets'));
+    const g2 = el('div', 'chips'); builtin.forEach(pr => g2.appendChild(Chip(m, pr))); b.appendChild(g2);
+    p.appendChild(c);
+  }
+
+  const yc = Card('Your presets', 'Usable on any display and by the Next preset shortcut.');
+  $('h3', yc).appendChild(Badge(mine.length ? 'ok' : 'muted', String(mine.length)));
+  const t = Table('c-preset', ['Layout', 'Name', 'Zones'], 'None yet. Use + New preset on a display.');
+  const home = pr => (S.monitors.find(m => m.layout.name === pr.name) || S.monitors.find(m => m.primary) || S.monitors[0]);
+  for (const pr of mine) {
+    const tr = el('div', 'tr c-preset');
+    tr.append(Mini(pr.zones), el('span', '', pr.name), Badge('muted', `${pr.zones.length} zones`),
+      Btn('Edit', 'outline sm', () => { const m = home(pr); if (m) send({ type: 'edit_preset', monitor: m.id, name: pr.name }); }),
+      Btn('Delete', 'danger sm', () => send({ type: 'delete_preset', name: pr.name })));
+    t.appendChild(tr);
+  }
+  emptyCheck(t);
+  body(yc, true).appendChild(t);
+  p.appendChild(yc);
+  setCount('displays', Badge('muted', String(S.monitors.length)));
+}
+
+// ---------- plans ----------
+// one colour per program inside a plan, in the plan's order (distinct
+// as long as a plan has at most 8 programs)
+function planColors(plan) {
+  const m = new Map();
+  for (const w of plan.windows) { const k = w.exe.toLowerCase(); if (!m.has(k)) m.set(k, ZC[m.size % ZC.length]); }
+  return exe => m.get(exe.toLowerCase());
+}
+const appName = exe => exe.replace(/\.exe$/i, '');
+function PlanMinis(plan, appColor) {
+  const box = el('div', 'minis');
+  const mons = S.monitors.length ? S.monitors : [{ id: '' }];
+  for (const m of mons) {
+    const wins = plan.windows.filter(w => w.monitor === m.id || mons.length === 1);
+    if (!wins.length && mons.length > 1) continue;
+    const mini = el('div', 'mini'); mini.title = m.label || '';
+    // bottom of the z-order first so the top window is drawn last
+    [...wins].reverse().forEach(w => {
+      const [l, t, r, b] = w.rect, d = el('i');
+      d.style.cssText = `--zc:${appColor(w.exe)};left:calc(${l * 100}% + 2px);top:calc(${t * 100}% + 2px);width:calc(${(r - l) * 100}% - 4px);height:calc(${(b - t) * 100}% - 4px)`;
+      mini.appendChild(d);
+    });
+    box.appendChild(mini);
+  }
+  return box;
+}
+function renderPlans() {
+  const p = panels.plans; p.textContent = '';
+  const go = (S.key_labels[S.hotkeys.plan_go] || S.hotkeys.plan_go) + '+N';
+  const save = (S.key_labels[S.hotkeys.plan_save] || S.hotkeys.plan_save) + '+N';
+  const kc = Card('How it works', null);
+  const kh = el('div', 'keyhint');
+  const k = (label, keys) => { const s = el('span'); s.append(label + ' '); keys.split('+').forEach((x, i) => { if (i) s.append('+'); s.appendChild(el('kbd', '', x)); }); return s; };
+  kh.append(k('Go to plan N', go), k('Save into plan N', save),
+    el('span', '', 'No need to open this window: saving onto a used number asks first (same keys again to overwrite, another number to save there, Esc to cancel).'));
+  body(kc).append(kh);
+  const list = Card('Plans', 'Saved by program: they still work after a reboot.');
+  const lb = body(list, true);
+  for (let n = 1; n <= 9; n++) {
+    const plan = S.plans.find(x => x.slot === n);
+    const row = el('div', 'plan' + (plan ? ' on' : ''));
+    row.appendChild(el('div', 'num', String(n)));
+    const what = el('div', 'what');
+    if (plan) {
+      const appColor = planColors(plan);
+      what.appendChild(PlanMinis(plan, appColor));
+      const apps = el('div', 'apps');
+      const seen = new Set();
+      for (const w of plan.windows) {
+        const key = w.exe.toLowerCase(); if (seen.has(key)) continue; seen.add(key);
+        const a = el('span', 'app'); a.title = w.title; a.style.setProperty('--zc', appColor(w.exe));
+        a.append(el('i'), el('span', '', appName(w.exe)));
+        apps.appendChild(a);
+      }
+      what.appendChild(apps);
+    } else {
+      what.appendChild(el('span', 'empty-note', 'Empty. Arrange your apps, then Save current.'));
+    }
+    row.appendChild(what);
+    const acts = el('div', 'acts');
+    if (plan) acts.append(Btn('Go', 'primary sm', () => send({ type: 'plan_go', slot: n })));
+    acts.append(Btn(plan ? 'Replace' : 'Save current', 'outline sm', () => send({ type: 'plan_save', slot: n })));
+    if (plan) acts.append(Btn('Clear', 'ghost sm', () => send({ type: 'plan_clear', slot: n })));
+    row.appendChild(acts);
+    lb.appendChild(row);
+  }
+  p.append(kc, list);
+  setCount('plans', S.plans.length ? Badge('ok', String(S.plans.length)) : Badge('muted', '0'));
+}
+
+// ---------- state in / out ----------
+const sw = k => $(`.sw[data-k="${k}"]`);
+const SWITCHES = ['enabled', 'shift_snap', 'remember_positions', 'autostart', 'log_enabled'];
+function masterBadge(on) {
+  const b = $('#m-badge'); b.className = 'b ' + (on ? 'b-ok' : 'b-warn');
+  b.lastChild.textContent = on ? 'Active' : 'Paused';
+}
+function fillSwitches() { SWITCHES.forEach(k => sw(k).setAttribute('aria-checked', S[k])); masterBadge(S.enabled); }
+function fillShortcuts() {
+  const rej = S.hotkeys_rejected || [];
+  $$('.cap[data-k^="hotkeys."]').forEach(box => {
+    const k = box.dataset.k.slice(8), v = S.hotkeys[k];
+    const mode = box.dataset.mode;
+    box.dataset.value = v; box.dataset.label = (S.key_labels[v] || v) + (mode === 'mods' ? '+' + DIGITS : '');
+    box.classList.remove('bad'); box.classList.toggle('warn', rej.includes(k));
+    renderKeys(box, box.dataset.label, PH[mode][0]);
+    const st = $(`[data-st="${k}"]`); st.textContent = '';
+    st.appendChild(rej.includes(k) ? Badge('warn', 'Taken', true) : Badge('ok', 'Ready', true));
+  });
+  setCount('shortcuts', rej.length ? Badge('warn', rej.length + ' taken') : null);
+}
+function fillCounts() {
+  setCount('fullscreen', Badge('ice', String(S.fs_exit_keys.length)));
+  const ex = S.exclude_processes.length + S.exclude_class_prefixes.length;
+  setCount('exclusions', Badge(ex ? 'ice' : 'muted', String(ex)));
+}
+function load(s) {
+  S = s;
+  $('#aboutver') && ($('#aboutver').textContent = 'Version ' + s.version);
+  fillSwitches();
+  $('[data-k=zone_gap]').value = s.zone_gap;
+  for (const id of ['keys', 'procs', 'classes']) $$(`#${id} .tr, #${id} .empty`).forEach(n => n.remove());
+  s.fs_exit_keys.forEach(keyRow);
+  s.exclude_processes.forEach(v => TableRow($('#procs'), [Input('mono', 'game.exe', v)]));
+  s.exclude_class_prefixes.forEach(v => TableRow($('#classes'), [Input('mono', 'Qt5', v)]));
+  ['keys', 'procs', 'classes'].forEach(id => emptyCheck($('#' + id)));
+  fillShortcuts(); fillCounts(); renderDisplays(); renderPlans();
+}
+function collect() {
+  const hk = {};
+  $$('.cap[data-k^="hotkeys."]').forEach(b => hk[b.dataset.k.slice(8)] = b.dataset.value);
+  const one = id => $$(`#${id} .tr input`).map(i => i.value);
+  const on = k => sw(k).getAttribute('aria-checked') === 'true';
+  return {
+    enabled: on('enabled'), shift_snap: on('shift_snap'), remember_positions: on('remember_positions'), autostart: on('autostart'), log_enabled: on('log_enabled'),
+    zone_gap: Number.parseInt($('[data-k=zone_gap]').value, 10),
+    hotkeys: hk,
+    fs_exit_keys: $$('#keys .tr').map(tr => ({ exe: $('input', tr).value, key: $('.cap', tr).dataset.value, stable: $('.sw.stable', tr).getAttribute('aria-checked') === 'true' })),
+    exclude_processes: one('procs'),
+    exclude_class_prefixes: one('classes'),
+  };
+}
+function clearErrors() { $$('.in.bad, .cap.bad').forEach(n => n.classList.remove('bad')); }
+function showError(e) {
+  clearErrors();
+  const m = /^fs_exit_keys\.(\d+)$/.exec(e.field || '');
+  let f = null;
+  if (m) { const tr = $$('#keys .tr')[+m[1]]; f = tr && ($('input', tr).value.trim() ? $('.cap', tr) : $('input', tr)); }
+  else if (e.field) f = $(`[data-k="${e.field}"]`);
+  if (f) f.classList.add('bad');
+  if (S) fillSwitches();
+  toast(e.message, 'bad');
+}
+function apply() {
+  if (!S) return;
+  const d = collect();
+  if (!Number.isFinite(d.zone_gap)) return showError({ field: 'zone_gap', message: 'Zone gap must be a number.' });
+  masterBadge(d.enabled);
+  send({ type: 'apply', data: d });
+}
+
+// ---------- wiring ----------
+buildNav(); buildGeneral(); buildShortcuts(); buildFullscreen(); buildExclusions(); buildSystem();
+document.addEventListener('click', e => {
+  const s = e.target.closest('.sw');
+  if (s) { s.setAttribute('aria-checked', s.getAttribute('aria-checked') !== 'true'); apply(); }
+});
+$('#main').addEventListener('change', e => { if (e.target.matches('.in') && !e.target.closest('.saveas')) apply(); });
+$('#main').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.in') && !e.target.closest('.saveas')) e.target.blur(); });
+$('#credit').addEventListener('click', () => send({ type: 'open_credit' }));
+document.addEventListener('keydown', e => { if (!rec && e.key === 'Escape' && !e.target.closest('.saveas')) send({ type: 'close' }); });
+document.addEventListener('contextmenu', e => { if (!e.target.matches('input')) e.preventDefault(); });
+show(store.get('zl-page') || 'general');
+
+wv && wv.addEventListener('message', e => {
+  const m = e.data;
+  if (m.type === 'state') load(m.state);
+  else if (m.type === 'saved') {
+    S = m.state; saving = null; creating = null; clearErrors();
+    fillSwitches(); fillShortcuts(); fillCounts(); renderDisplays(); renderPlans();
+    toast('Saved', 'ok');
+  }
+  else if (m.type === 'sync') { S = m.state; saving = null; creating = null; fillSwitches(); renderDisplays(); renderPlans(); }
+  else if (m.type === 'error') showError(m.error);
+});
+send({ type: 'ready' });
+})();
+</script>
+</body>
+</html>
