@@ -47,7 +47,7 @@ code injected into other apps.
 |---|---|
 | **Zones per display** | Every monitor gets its own layout. Pick a built-in preset (halves, thirds, 2/3 + 1/3, grid, focus…) or draw your own and save it. |
 | **Maximize stays in its zone** | The maximize button fills the zone the window is in, not the whole screen. |
-| **F11 stays in its zone** | Browsers and video players go **real fullscreen** (no bars, no tabs) inside their zone. The rest of the screen keeps working. |
+| **F11 stays in its zone** | A window sitting in a zone goes **real fullscreen** (no bars, no tabs) inside that zone, and the rest of the screen keeps working. A window that is not in a zone (Parsec or Remote Desktop connecting, a game, a player you moved out) gets the whole screen as usual. |
 | **Shift + drag to snap** | Hold Shift while moving a window: the zones light up, drop it on one. |
 | **Drag out, get your size back** | Pull a snapped window out of its zone and it returns to the size it had before, right under your cursor. |
 | **Zone shortcuts** | `Win+Ctrl+Alt+→ / ←` moves the active window to the next / previous zone. |
@@ -183,9 +183,10 @@ window decides what to do:
 
 - a normal window that suddenly covers its monitor because of **maximize** is
   put back into the zone it was in;
-- a window that goes **fullscreen** is held inside its zone while it stays in
+- a window that goes **fullscreen** while sitting in a zone is held inside it while it stays in
   its own fullscreen mode (the app keeps hiding its bars); leaving fullscreen
-  gives it back its frame and its place;
+  gives it back its frame and its place. A free-floating window going
+  fullscreen gets the whole display;
 - a window **born** covering a monitor (a game) is left alone forever.
 
 The settings window is an HTML page compiled into the exe and shown with the
