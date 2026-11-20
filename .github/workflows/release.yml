@@ -1,0 +1,51 @@
+name: Release
+
+# Push a tag like v1.2.3 (matching Cargo.toml's version) to build and
+# publish a release. Notes come from docs/releases/<tag>.md.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Tag matches Cargo.toml version
+        shell: pwsh
+        run: |
+          $ver = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version
+          if ("v$ver" -ne $env:GITHUB_REF_NAME) { throw "tag $env:GITHUB_REF_NAME != Cargo.toml v$ver" }
+
+      - name: Unit tests
+        run: cargo test --lib --locked
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Package (exe, zip, installer, checksums)
+        shell: pwsh
+        run: ./packaging/package.ps1
+
+      - name: Release notes
+        id: notes
+        shell: pwsh
+        run: |
+          $f = "docs/releases/$env:GITHUB_REF_NAME.md"
+          if (-not (Test-Path $f)) { throw "missing $f" }
+          "file=$f" >> $env:GITHUB_OUTPUT
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ZoneLock ${{ github.ref_name }}
+          body_path: ${{ steps.notes.outputs.file }}
+          files: |
+            dist/*.zip
+            dist/*-setup.exe
+            dist/SHA256SUMS.txt

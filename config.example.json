@@ -1,0 +1,38 @@
+{
+  "enabled": true,
+  "zone_gap": 0,
+  "fullscreen_tolerance": 8,
+  "max_refights": 5,
+  "refight_window_ms": 2000,
+  "exclude_processes": [
+    "example-game.exe"
+  ],
+  "exclude_class_prefixes": [],
+  "autostart": false,
+  "log_enabled": false,
+  "hotkeys": {
+    "toggle": "Win+Alt+Z",
+    "editor": "Win+Alt+E",
+    "next_preset": "Win+Alt+P",
+    "next_zone": "Win+Ctrl+Alt+Right",
+    "prev_zone": "Win+Ctrl+Alt+Left"
+  },
+  "layouts": {
+    "default": {
+      "name": "halves 50/50",
+      "zones": [
+        { "name": "left", "rect": { "left": 0.0, "top": 0.0, "right": 0.5, "bottom": 1.0 } },
+        { "name": "right", "rect": { "left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0 } }
+      ]
+    },
+    "by_monitor": {
+      "\\\\.\\DISPLAY1": {
+        "name": "halves 50/50",
+        "zones": [
+          { "name": "left", "rect": { "left": 0.0, "top": 0.0, "right": 0.5, "bottom": 1.0 } },
+          { "name": "right", "rect": { "left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0 } }
+        ]
+      }
+    }
+  }
+}
