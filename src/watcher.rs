@@ -460,6 +460,7 @@ fn evaluate_in_ctx(ctx: &mut Ctx, info: &WindowInfo) -> Action {
     // fires on every LOCATIONCHANGE - skip it or the log floods during
     // any drag.
     let quiet = matches!(action, Action::Nothing)
+        || (matches!(action, Action::Forget) && prev.is_none())
         || (matches!(action, Action::Track(_))
             && matches!(prev, Some(WinState::Normal(_))));
     // logged when this function returns, i.e. AFTER the action is applied:

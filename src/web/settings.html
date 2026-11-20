@@ -547,7 +547,7 @@ function buildSystem() {
   const ab = Card('About', null);
   const abb = body(ab); abb.classList.add('about');
   abb.append(
-    el('p', '', 'ZoneLock keeps maximized and fullscreen windows inside the zones of each display.'),
+    el('p', '', 'ZoneLock snaps windows into the zones of each display and keeps fullscreen apps inside their zone.'),
     el('p', '', 'No account, no telemetry. The only network use is the update check above. No DLL injection, no admin rights.'),
   );
   const v = el('p', 'mono'); v.id = 'aboutver'; abb.appendChild(v);

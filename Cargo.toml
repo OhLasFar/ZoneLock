@@ -1,8 +1,8 @@
 [package]
 name = "zonelock"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
-description = "Keep maximize and windowed fullscreen (F11) inside monitor zones on Windows"
+description = "Window zones for Windows: snap apps into zones, and F11 fullscreen stays in its zone"
 license = "GPL-3.0-or-later"
 authors = ["OhLasFar"]
 repository = "https://github.com/OhLasFar/ZoneLock"
