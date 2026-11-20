@@ -2,7 +2,7 @@
 ; Build: packaging\package.ps1 (passes the version), or
 ;        iscc /DAppVersion=1.0.0 packaging\ZoneLock.iss   (Inno Setup 6+)
 #ifndef AppVersion
-  #define AppVersion "1.0.2"
+  #define AppVersion "1.0.3"
 #endif
 
 [Setup]
@@ -55,6 +55,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\zonelock.exe"; Description: "Launch ZoneLock"; Flags: nowait postinstall skipifsilent
+; silent update started from ZoneLock itself (/update=1): start it again
+Filename: "{app}\zonelock.exe"; Flags: nowait; Check: IsUpdate
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/IM zonelock.exe /F"; Flags: runhidden; RunOnceId: "StopZoneLock"
@@ -64,6 +66,11 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/IM zonelock.exe /F"; Flags: runhid
 Type: filesandordirs; Name: "{userappdata}\ZoneLock\WebView2"
 
 [Code]
+function IsUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:update|0}') = '1';
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then

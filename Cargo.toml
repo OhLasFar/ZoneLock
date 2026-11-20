@@ -1,6 +1,6 @@
 [package]
 name = "zonelock"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 description = "Keep maximize and windowed fullscreen (F11) inside monitor zones on Windows"
 license = "GPL-3.0-or-later"
@@ -30,6 +30,7 @@ windows = { version = "0.62", features = [
     "Win32_System_SystemInformation",
     "Win32_System_Diagnostics_Debug",
     "Win32_Security",
+    "Win32_Networking_WinHttp",
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

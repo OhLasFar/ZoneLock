@@ -26,10 +26,39 @@ pub enum UiCmd {
     PlanGo(u8),
     /// Save the current windows as plan n (1-9).
     PlanSave(u8),
+    /// Update status changed (worker thread -> UI thread): refresh the page.
+    UpdateChanged,
     Exit,
 }
 
 pub const TRAY_MSG: u32 = WM_APP + 1;
+/// Posted by the update worker: wparam 1 = also show the "new version"
+/// balloon.
+const UPDATE_MSG: u32 = WM_APP + 2;
+/// Balloon clicked (NIN_BALLOONUSERCLICK = WM_USER + 5).
+const NIN_BALLOONUSERCLICK: u32 = WM_USER + 5;
+
+/// The tray window, for posts from other threads.
+static TRAY_WND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+
+fn post_tray(msg: u32, wparam: usize) {
+    let h = TRAY_WND.load(std::sync::atomic::Ordering::Relaxed);
+    if h != 0 {
+        unsafe {
+            let _ = PostMessageW(Some(HWND(h as *mut _)), msg, WPARAM(wparam), LPARAM(0));
+        }
+    }
+}
+
+/// From any thread: the update status changed (alloon: announce it).
+pub fn post_update(balloon: bool) {
+    post_tray(UPDATE_MSG, balloon as usize);
+}
+
+/// From any thread: quit ZoneLock cleanly (after starting an update).
+pub fn post_quit() {
+    post_tray(WM_COMMAND, IDM_EXIT as usize);
+}
 // The tray menu is deliberately tiny: everything else lives in the
 // settings panel (left click). Ids are stable (probe --traycmd uses 107).
 const IDM_TOGGLE: u32 = 100;
@@ -73,7 +102,7 @@ unsafe extern "system" fn wndproc(
     match msg {
         x if x == TRAY_MSG => {
             let evt = lparam.0 as u32;
-            if evt == WM_LBUTTONUP {
+            if evt == WM_LBUTTONUP || evt == NIN_BALLOONUSERCLICK {
                 // left click opens the dashboard, right click the menu
                 if let Some(h) = handler() {
                     h(UiCmd::OpenSettings);
@@ -111,6 +140,15 @@ unsafe extern "system" fn wndproc(
             }
             LRESULT(0)
         }
+        x if x == UPDATE_MSG => {
+            if wparam.0 == 1 {
+                show_update_balloon(hwnd);
+            }
+            if let Some(h) = handler() {
+                h(UiCmd::UpdateChanged);
+            }
+            LRESULT(0)
+        }
         WM_DESTROY => {
             PostQuitMessage(0);
             LRESULT(0)
@@ -126,6 +164,26 @@ fn menu_to_cmd(id: u32) -> Option<UiCmd> {
         IDM_EXIT => UiCmd::Exit,
         _ => return None,
     })
+}
+
+/// ZoneLock X is available balloon; a click opens Settings.
+unsafe fn show_update_balloon(hwnd: HWND) {
+    let v = crate::update::view();
+    let mut nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: 1,
+        uFlags: windows::Win32::UI::Shell::NIF_INFO,
+        dwInfoFlags: windows::Win32::UI::Shell::NIIF_INFO,
+        ..Default::default()
+    };
+    let put = |dst: &mut [u16], text: &str| {
+        let w: Vec<u16> = text.encode_utf16().take(dst.len() - 1).collect();
+        dst[..w.len()].copy_from_slice(&w);
+    };
+    put(&mut nid.szInfoTitle, &format!("ZoneLock {} is available", v.latest));
+    put(&mut nid.szInfo, "Click to open Settings and install it.");
+    let _ = Shell_NotifyIconW(windows::Win32::UI::Shell::NIM_MODIFY, &mut nid);
 }
 
 unsafe fn show_menu(hwnd: HWND) {
@@ -196,6 +254,7 @@ impl Tray {
                 None,
             )
             .map_err(|e| e.to_string())?;
+            TRAY_WND.store(hwnd.0 as isize, std::sync::atomic::Ordering::Relaxed);
 
             let icon = crate::icon::app_icon(32);
 

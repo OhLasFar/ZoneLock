@@ -32,7 +32,10 @@ try {
         "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
         "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
     ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
-    $artifacts = @($zip)
+    # raw exe: what a portable copy downloads to update itself
+    $rawExe = Join-Path $root "dist\$name.exe"
+    Copy-Item target\release\zonelock.exe $rawExe
+    $artifacts = @($zip, $rawExe)
     if ($iscc) {
         & $iscc /Q "/DAppVersion=$ver" packaging\ZoneLock.iss
         if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }

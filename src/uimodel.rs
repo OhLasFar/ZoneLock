@@ -68,6 +68,9 @@ pub struct UiState {
     pub enabled: bool,
     pub shift_snap: bool,
     pub remember_positions: bool,
+    pub check_updates: bool,
+    /// Update check / install status (filled by the host).
+    pub update: crate::update::UpdateView,
     pub autostart: bool,
     pub log_enabled: bool,
     pub zone_gap: i32,
@@ -95,6 +98,8 @@ pub struct UiSettings {
     pub shift_snap: bool,
     #[serde(default = "yes")]
     pub remember_positions: bool,
+    #[serde(default = "yes")]
+    pub check_updates: bool,
     pub autostart: bool,
     pub log_enabled: bool,
     pub zone_gap: i32,
@@ -134,6 +139,10 @@ pub enum PageMsg {
     OpenEditor,
     OpenConfigDir,
     OpenCredit,
+    /// Updates: ask GitHub now, install the found version, open its page.
+    UpdateCheck,
+    UpdateInstall,
+    UpdatePage,
 }
 
 /// Validation failure: `field` lets the page mark the right input.
@@ -190,6 +199,8 @@ pub fn build_state(cfg: &Config, autostart: bool, monitors: &[Monitor]) -> UiSta
         enabled: cfg.enabled,
         shift_snap: cfg.shift_snap,
         remember_positions: cfg.remember_positions,
+        check_updates: cfg.check_updates,
+        update: Default::default(),
         autostart,
         log_enabled: cfg.log_enabled,
         zone_gap: cfg.zone_gap,
@@ -327,6 +338,7 @@ pub fn apply_settings(cfg: &Config, s: &UiSettings) -> Result<Config, UiError> {
     out.enabled = s.enabled;
     out.shift_snap = s.shift_snap;
     out.remember_positions = s.remember_positions;
+    out.check_updates = s.check_updates;
     out.log_enabled = s.log_enabled;
     out.zone_gap = s.zone_gap;
     out.hotkeys = HotkeyConfig {

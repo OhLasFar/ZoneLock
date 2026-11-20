@@ -50,6 +50,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .side{display:flex;flex-direction:column;gap:14px;padding:18px 14px;border-right:1px solid var(--dp-border);background:rgb(0 0 0 / .18);min-height:0}
 .brand{display:flex;align-items:center;gap:10px;padding:2px 6px}
 .logo{width:28px;height:28px;flex:none;display:block}
+.upd-act{display:flex;gap:8px;align-items:center}
 .brand b{font:700 17px/1 var(--display)}
 .state{border-radius:var(--r-lg);background:var(--dp-card);box-shadow:var(--ring);padding:12px;display:flex;align-items:center;gap:10px}
 .state .t{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px}
@@ -427,7 +428,7 @@ const PAGES = [
   { id: 'shortcuts', group: 'Input', title: 'Shortcuts', desc: 'Click a field, then press the keys. Works with any keyboard layout.' },
   { id: 'fullscreen', group: 'Apps', title: 'Fullscreen apps', desc: 'Apps stay in real fullscreen inside their zone. If one flickers when you click it (Chrome, Edge, Discord and other Chromium apps), turn on Stable for it.' },
   { id: 'exclusions', group: 'Apps', title: 'Exclusions', desc: 'Programs ZoneLock never touches. Exclusive-fullscreen games are already ignored.' },
-  { id: 'system', group: 'App', title: 'System', desc: 'Logs, config folder and the app itself.' },
+  { id: 'system', group: 'App', title: 'System', desc: 'Updates, logs, config folder and the app itself.' },
 ];
 const panels = {};
 function buildNav() {
@@ -528,6 +529,15 @@ function buildExclusions() {
 }
 
 function buildSystem() {
+  const up = Card('Updates', 'The only thing ZoneLock does online: ask GitHub for a newer release. Nothing about you is sent.');
+  const ub = body(up, true);
+  const act = el('div', 'upd-act'); act.id = 'upd-act';
+  const cur = Row('ZoneLock', '', act); cur.id = 'upd-row';
+  ub.append(
+    cur,
+    Row('Check automatically', 'Once a day. You get a notification when a new version is out.', Switch('check_updates', 'Check for updates automatically')),
+  );
+  panels.system.append(up);
   const mt = Card('Maintenance', null);
   body(mt, true).append(
     Row('Verbose log', 'Writes zonelock.log in the config folder, rotated at 1 MB.', Switch('log_enabled', 'Verbose log')),
@@ -538,7 +548,7 @@ function buildSystem() {
   const abb = body(ab); abb.classList.add('about');
   abb.append(
     el('p', '', 'ZoneLock keeps maximized and fullscreen windows inside the zones of each display.'),
-    el('p', '', 'Local only: no account, no telemetry, no network. No DLL injection, no admin rights.'),
+    el('p', '', 'No account, no telemetry. The only network use is the update check above. No DLL injection, no admin rights.'),
   );
   const v = el('p', 'mono'); v.id = 'aboutver'; abb.appendChild(v);
   panels.system.append(mt, ab);
@@ -715,7 +725,35 @@ function renderPlans() {
 
 // ---------- state in / out ----------
 const sw = k => $(`.sw[data-k="${k}"]`);
-const SWITCHES = ['enabled', 'shift_snap', 'remember_positions', 'autostart', 'log_enabled'];
+const SWITCHES = ['enabled', 'shift_snap', 'remember_positions', 'autostart', 'log_enabled', 'check_updates'];
+// ---------- updates ----------
+function ago(t) {
+  if (!t) return 'never';
+  const m = Math.round((Date.now() / 1000 - t) / 60);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60);
+  return h < 24 ? h + ' h ago' : Math.round(h / 24) + ' d ago';
+}
+function renderUpdate() {
+  const u = S.update || {}, row = $('#upd-row'), act = $('#upd-act');
+  if (!row) return;
+  $('.t div', row).textContent = 'ZoneLock ' + (u.current || S.version);
+  let hint = row.querySelector('small');
+  if (!hint) { hint = el('small'); $('.t', row).appendChild(hint); }
+  const busy = ['checking', 'downloading', 'installing'].includes(u.state);
+  hint.textContent = u.message || ('Last checked: ' + ago(u.last_check) + '.');
+  if (u.state === 'uptodate' || u.state === 'idle') hint.textContent = (u.state === 'uptodate' ? 'Up to date. ' : '') + 'Last checked: ' + ago(u.last_check) + '.';
+  act.textContent = '';
+  if (u.state === 'available') {
+    act.append(Btn('What’s new', 'ghost sm', () => send({ type: 'update_page' })),
+      Btn('Install ' + u.latest, 'primary sm', () => send({ type: 'update_install' })));
+  } else {
+    const b = Btn(busy ? 'Working…' : 'Check now', 'outline sm', () => send({ type: 'update_check' }));
+    b.disabled = busy; act.append(b);
+  }
+  setCount('system', u.state === 'available' ? Badge('ok', 'Update') : u.state === 'error' ? Badge('warn', '!') : null);
+}
 function masterBadge(on) {
   const b = $('#m-badge'); b.className = 'b ' + (on ? 'b-ok' : 'b-warn');
   b.lastChild.textContent = on ? 'Active' : 'Paused';
@@ -749,7 +787,7 @@ function load(s) {
   s.exclude_processes.forEach(v => TableRow($('#procs'), [Input('mono', 'game.exe', v)]));
   s.exclude_class_prefixes.forEach(v => TableRow($('#classes'), [Input('mono', 'Qt5', v)]));
   ['keys', 'procs', 'classes'].forEach(id => emptyCheck($('#' + id)));
-  fillShortcuts(); fillCounts(); renderDisplays(); renderPlans();
+  fillShortcuts(); fillCounts(); renderDisplays(); renderPlans(); renderUpdate();
 }
 function collect() {
   const hk = {};
@@ -757,7 +795,7 @@ function collect() {
   const one = id => $$(`#${id} .tr input`).map(i => i.value);
   const on = k => sw(k).getAttribute('aria-checked') === 'true';
   return {
-    enabled: on('enabled'), shift_snap: on('shift_snap'), remember_positions: on('remember_positions'), autostart: on('autostart'), log_enabled: on('log_enabled'),
+    enabled: on('enabled'), shift_snap: on('shift_snap'), remember_positions: on('remember_positions'), autostart: on('autostart'), log_enabled: on('log_enabled'), check_updates: on('check_updates'),
     zone_gap: Number.parseInt($('[data-k=zone_gap]').value, 10),
     hotkeys: hk,
     fs_exit_keys: $$('#keys .tr').map(tr => ({ exe: $('input', tr).value, key: $('.cap', tr).dataset.value, stable: $('.sw.stable', tr).getAttribute('aria-checked') === 'true' })),
@@ -802,10 +840,10 @@ wv && wv.addEventListener('message', e => {
   if (m.type === 'state') load(m.state);
   else if (m.type === 'saved') {
     S = m.state; saving = null; creating = null; clearErrors();
-    fillSwitches(); fillShortcuts(); fillCounts(); renderDisplays(); renderPlans();
+    fillSwitches(); fillShortcuts(); fillCounts(); renderDisplays(); renderPlans(); renderUpdate();
     toast('Saved', 'ok');
   }
-  else if (m.type === 'sync') { S = m.state; saving = null; creating = null; fillSwitches(); renderDisplays(); renderPlans(); }
+  else if (m.type === 'sync') { S = m.state; saving = null; creating = null; fillSwitches(); renderDisplays(); renderPlans(); renderUpdate(); }
   else if (m.type === 'error') showError(m.error);
 });
 send({ type: 'ready' });

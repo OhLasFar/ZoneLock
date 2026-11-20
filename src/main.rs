@@ -39,6 +39,9 @@ fn main() {
         log::line(format!("PANIC: {info}"));
     }));
 
+    // Started by an update: wait for the old process, clean up after it.
+    zonelock::update::after_update_startup();
+
     // Single instance: a second launch exits quietly.
     unsafe {
         let _m = windows::Win32::System::Threading::CreateMutexW(
@@ -111,6 +114,8 @@ fn main() {
     TRAY_HWND.store(tray.hwnd.0 as isize, Ordering::Relaxed);
     let hk_ids = hotkeys::register_all(tray.hwnd, &shared.config.read().unwrap().hotkeys);
     *HK_IDS.lock().unwrap() = hk_ids;
+    // daily update check (if allowed); results come back as UiCmd::UpdateChanged
+    zonelock::update::spawn_auto(Arc::clone(&shared));
 
     unsafe {
         let mut msg = MSG::default();
@@ -173,6 +178,7 @@ fn handle_cmd(shared: &Arc<Shared>, cmd: UiCmd) {
             }
         }
         UiCmd::PlanSave(n) => save_plan_from_keys(shared, n),
+        UiCmd::UpdateChanged => zonelock::webui::refresh(),
         UiCmd::SuspendHotkeys => {
             let hwnd = HWND(TRAY_HWND.load(Ordering::Relaxed) as *mut _);
             let mut ids = HK_IDS.lock().unwrap();
