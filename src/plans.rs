@@ -326,7 +326,14 @@ mod win {
                 ShellExecuteW(None, w!("open"), w!("explorer.exe"), PCWSTR(arg.as_ptr()), PCWSTR::null(), SW_SHOWNORMAL)
             } else if !pw.path.is_empty() {
                 let p = wide(&pw.path);
-                ShellExecuteW(None, w!("open"), PCWSTR(p.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL)
+                // start it in its own folder, like a shortcut would: some
+                // apps (Steam...) write logs / look for files in the
+                // current directory, which would otherwise be ours
+                let dir = std::path::Path::new(&pw.path)
+                    .parent()
+                    .map(|d| wide(&d.to_string_lossy()))
+                    .unwrap_or_else(|| wide(""));
+                ShellExecuteW(None, w!("open"), PCWSTR(p.as_ptr()), PCWSTR::null(), PCWSTR(dir.as_ptr()), SW_SHOWNORMAL)
             } else {
                 return false;
             }

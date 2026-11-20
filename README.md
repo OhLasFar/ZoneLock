@@ -16,7 +16,7 @@ Fullscreen video stays in its zone. Your chat stays visible.
 [![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=flat-square&logo=windows&logoColor=white)](#install)
 [![Made with Rust](https://img.shields.io/badge/made%20with-Rust-dea584?style=flat-square&logo=rust&logoColor=white)](#build-from-source)
 
-### [⬇ Download for Windows](https://github.com/OhLasFar/ZoneLock/releases/latest)
+### [Download for Windows](https://github.com/OhLasFar/ZoneLock/releases/latest)
 
 <img src="docs/assets/demo.gif" alt="ZoneLock demo: Shift+drag snaps a video into a zone, F11 keeps it fullscreen inside that zone while the chat stays visible, dragging it out gives back its size" width="900">
 
@@ -45,17 +45,17 @@ code injected into other apps.
 
 | | |
 |---|---|
-| 🧱 **Zones per display** | Every monitor gets its own layout. Pick a built-in preset (halves, thirds, 2/3 + 1/3, grid, focus…) or draw your own and save it. |
-| 🔲 **Maximize stays in its zone** | The maximize button fills the zone the window is in, not the whole screen. |
-| 🎬 **F11 stays in its zone** | Browsers and video players go **real fullscreen** (no bars, no tabs) inside their zone. The rest of the screen keeps working. |
-| 🧲 **Shift + drag to snap** | Hold Shift while moving a window: the zones light up, drop it on one. |
-| ↩️ **Drag out, get your size back** | Pull a snapped window out of its zone and it returns to the size it had before, right under your cursor. |
-| ⌨️ **Zone shortcuts** | `Win+Ctrl+Alt+→ / ←` moves the active window to the next / previous zone. |
-| 🗂️ **Plans 1–9** | Save the apps you have open and where they are, then switch with `Alt+Shift+1…9`. Apps that are not running are launched and put back in place, everything else is minimized. Survives reboots. |
-| 📌 **Reopen where you left it** | Close an app, open it later: it comes back on the same display, at the same spot. |
-| 🖥️ **Display changes handled** | Change resolution, scaling or the taskbar, unplug a monitor: windows go back into their zones. A missing display falls back to the main one. |
-| 🎛️ **Settings panel** | A clean panel from the tray icon. Every change applies instantly. Shortcuts are recorded by pressing them, on any keyboard layout. |
-| 🪶 **Light** | ~1 MB, ~2 MB of RAM in the background. The settings window only runs while it is open. |
+| **Zones per display** | Every monitor gets its own layout. Pick a built-in preset (halves, thirds, 2/3 + 1/3, grid, focus…) or draw your own and save it. |
+| **Maximize stays in its zone** | The maximize button fills the zone the window is in, not the whole screen. |
+| **F11 stays in its zone** | Browsers and video players go **real fullscreen** (no bars, no tabs) inside their zone. The rest of the screen keeps working. |
+| **Shift + drag to snap** | Hold Shift while moving a window: the zones light up, drop it on one. |
+| **Drag out, get your size back** | Pull a snapped window out of its zone and it returns to the size it had before, right under your cursor. |
+| **Zone shortcuts** | `Win+Ctrl+Alt+→ / ←` moves the active window to the next / previous zone. |
+| **Plans 1–9** | Save the apps you have open and where they are, then switch with `Alt+Shift+1…9`. Apps that are not running are launched and put back in place, everything else is minimized. Survives reboots. |
+| **Reopen where you left it** | Close an app, open it later: it comes back on the same display, at the same spot. |
+| **Display changes handled** | Change resolution, scaling or the taskbar, unplug a monitor: windows go back into their zones. A missing display falls back to the main one. |
+| **Settings panel** | A clean panel from the tray icon. Every change applies instantly. Shortcuts are recorded by pressing them, on any keyboard layout. |
+| **Light** | ~1 MB, ~2 MB of RAM in the background. The settings window only runs while it is open. |
 
 ## Screenshots
 
@@ -232,7 +232,7 @@ The embedded fonts (Figtree, Syne, JetBrains Mono) are under the
 
 ---
 
-Made by [@LasFar](https://x.com/LasFar) · If ZoneLock saves your ultrawide, a ⭐ helps others find it.
+Made by [@LasFar](https://x.com/LasFar) · If ZoneLock saves your ultrawide, a star helps others find it.
 
 [![Star History Chart](https://api.star-history.com/svg?repos=OhLasFar/ZoneLock&type=Date&theme=dark)](https://star-history.com/#OhLasFar/ZoneLock&Date)
 

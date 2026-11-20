@@ -3,9 +3,10 @@
 // build-time `.ico` encoder in `build.rs` (via `include!`), so the
 // file must stay dependency-free (std only).
 //
-// Design: dark rounded square holding three zones — one tall left,
-// two stacked right — with the top-right zone highlighted. Reads as
-// a "window split into zones" even at 16x16.
+// Design ("locked zone"): dark rounded square holding two zones, a
+// wide left one (2/3) carrying a keyhole and a narrow right one (1/3).
+// Same geometry as docs/assets/logo.svg and the settings page logo
+// (24-unit grid, divided by 24 below). Edges are 4x4 supersampled.
 
 // Dispattern "signal" colours, same as the settings page logo.
 const BG: [u8; 4] = [0x22, 0x12, 0x0B, 0xFF]; // #0b1222 dark navy (BGRA)
@@ -37,35 +38,64 @@ fn in_rounded(fx: f32, fy: f32, l: f32, t: f32, r: f32, b: f32, rad: f32) -> boo
     dx * dx + dy * dy <= rad * rad
 }
 
+/// Keyhole of the big zone: a round head over a slot that widens down.
+fn in_keyhole(fx: f32, fy: f32) -> bool {
+    let u = |v: f32| v / 24.0;
+    let (cx, cy, r) = (u(8.75), u(10.2), u(2.1));
+    if (fx - cx) * (fx - cx) + (fy - cy) * (fy - cy) <= r * r {
+        return true;
+    }
+    let (top, bot) = (u(11.2), u(15.8));
+    if fy < top || fy > bot {
+        return false;
+    }
+    let k = (fy - top) / (bot - top);
+    let l = u(7.7) + (u(7.1) - u(7.7)) * k;
+    let r = u(9.8) + (u(10.4) - u(9.8)) * k;
+    fx >= l && fx <= r
+}
+
 fn pixel(fx: f32, fy: f32) -> [u8; 4] {
-    if !in_rounded(fx, fy, 0.04, 0.04, 0.96, 0.96, 0.18) {
+    let u = |v: f32| v / 24.0;
+    if !in_rounded(fx, fy, u(0.5), u(0.5), u(23.5), u(23.5), u(5.5)) {
         return CLEAR;
     }
-    let in_zone = |l: f32, t: f32, r: f32, b: f32| {
-        fx >= l && fx <= r && fy >= t && fy <= b
-    };
-    if in_zone(0.10, 0.10, 0.54, 0.90) {
-        return ZONE;
+    if in_rounded(fx, fy, u(3.5), u(3.5), u(14.0), u(20.5), u(2.0)) {
+        return if in_keyhole(fx, fy) { BG } else { ZONE };
     }
-    if in_zone(0.58, 0.10, 0.90, 0.47) {
+    if in_rounded(fx, fy, u(15.2), u(3.5), u(20.5), u(20.5), u(2.0)) {
         return ACCENT;
-    }
-    if in_zone(0.58, 0.51, 0.90, 0.90) {
-        return ZONE;
     }
     BG
 }
 
 /// `size`x`size` BGRA pixels, top-down row order.
 pub fn pixels(size: usize) -> Vec<u8> {
+    const SS: usize = 4; // supersampling per axis
     let mut out = vec![0u8; size * size * 4];
     for y in 0..size {
         for x in 0..size {
-            let fx = (x as f32 + 0.5) / size as f32;
-            let fy = (y as f32 + 0.5) / size as f32;
-            let c = pixel(fx, fy);
+            // average with alpha weighting (straight alpha output)
+            let (mut b, mut g, mut r, mut a) = (0u32, 0u32, 0u32, 0u32);
+            for sy in 0..SS {
+                for sx in 0..SS {
+                    let fx = (x as f32 + (sx as f32 + 0.5) / SS as f32) / size as f32;
+                    let fy = (y as f32 + (sy as f32 + 0.5) / SS as f32) / size as f32;
+                    let c = pixel(fx, fy);
+                    let ca = c[3] as u32;
+                    b += c[0] as u32 * ca;
+                    g += c[1] as u32 * ca;
+                    r += c[2] as u32 * ca;
+                    a += ca;
+                }
+            }
             let i = (y * size + x) * 4;
-            out[i..i + 4].copy_from_slice(&c);
+            if a > 0 {
+                out[i] = (b / a) as u8;
+                out[i + 1] = (g / a) as u8;
+                out[i + 2] = (r / a) as u8;
+                out[i + 3] = (a / (SS * SS) as u32) as u8;
+            }
         }
     }
     out
@@ -77,14 +107,15 @@ mod tests {
 
     #[test]
     fn corners_transparent_center_zoned() {
-        let px = pixels(64);
+        let px = pixels(96);
         let at = |x: usize, y: usize| {
-            let i = (y * 64 + x) * 4;
+            let i = (y * 96 + x) * 4;
             [px[i], px[i + 1], px[i + 2], px[i + 3]]
         };
         assert_eq!(at(1, 1), CLEAR, "corner should be transparent");
-        assert_eq!(at(10, 32), ZONE, "left zone");
-        assert_eq!(at(48, 15), ACCENT, "highlight zone");
-        assert_eq!(at(36, 32), BG, "column gap is background");
+        assert_eq!(at(20, 70), ZONE, "big zone");
+        assert_eq!(at(35, 41), BG, "keyhole is cut out of the big zone");
+        assert_eq!(at(71, 48), ACCENT, "narrow zone");
+        assert_eq!(at(58, 48), BG, "gap between the zones");
     }
 }
