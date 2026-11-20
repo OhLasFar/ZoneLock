@@ -143,13 +143,19 @@ impl Snaps {
 /// at most a third, still covering it. A window spanning two zones (an
 /// Aero Snap half over a 4-column layout) is not "in" either.
 pub fn fills_zone(v: &Rect, z: &Rect) -> bool {
-    const TOL: i32 = 3;
-    let near = |a: i32, b: i32| (a - b).abs() <= TOL;
+    fills_zone_within(v, z, 3)
+}
+
+/// `fills_zone` with an edge tolerance of `tol` px. With a WINDOW rect
+/// (invisible resize borders included, ~7-11 px depending on DPI) use a
+/// tolerance that covers those borders.
+pub fn fills_zone_within(v: &Rect, z: &Rect, tol: i32) -> bool {
+    let near = |a: i32, b: i32| (a - b).abs() <= tol;
     let same_x = near(v.left, z.left) && near(v.right, z.right);
     let same_y = near(v.top, z.top) && near(v.bottom, z.bottom);
     let grown = |lo: i32, hi: i32, zlo: i32, zhi: i32| {
         let (len, zlen) = (hi - lo, zhi - zlo);
-        lo <= zlo + TOL && hi >= zhi - TOL && len <= zlen + zlen / 3
+        lo <= zlo + tol && hi >= zhi - tol && len <= zlen + zlen / 3
     };
     (same_x && same_y)
         || (same_y && grown(v.left, v.right, z.left, z.right))

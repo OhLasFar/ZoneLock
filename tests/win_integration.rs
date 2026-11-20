@@ -196,6 +196,35 @@ fn f11_style_fullcover_is_contained() {
     pump(150);
     assert!(matches!(watcher::evaluate(hwnd), Action::Track(_)));
 
+    // a FLOATING window going fullscreen gets the whole display
+    let cover = |h| unsafe {
+        SetWindowPos(
+            h,
+            None,
+            mon.rect.left,
+            mon.rect.top,
+            mon.rect.width(),
+            mon.rect.height(),
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        )
+        .unwrap();
+    };
+    cover(hwnd);
+    pump(150);
+    let a = watcher::evaluate(hwnd);
+    assert_eq!(a, Action::Ignore, "floating window: real fullscreen");
+    unsafe {
+        let _ = DestroyWindow(hwnd);
+    }
+
+    // a window SNAPPED in its zone keeps its fullscreen there
+    let hwnd = make_window(&spot);
+    pump(150);
+    let zone = FracRect::new(0.0, 0.0, 0.5, 1.0).to_pixels(&mon.work, 0);
+    assert!(zonelock::place::apply_zone(hwnd, &zone));
+    pump(150);
+    assert!(matches!(watcher::evaluate(hwnd), Action::Track(_)));
+
     // simulate F11: borderless covering of the whole monitor, not zoomed
     unsafe {
         SetWindowPos(

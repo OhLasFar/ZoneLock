@@ -110,22 +110,37 @@ fn make_normal(info: &WindowInfo, mon: &Monitor, layout: Option<&Layout>) -> Nor
     }
 }
 
+/// Window-rect tolerance for "sits in its zone": covers the invisible
+/// resize borders (~7 px at 100 %, ~11 px at 150 %).
+const ZONE_FIT_TOL: i32 = 16;
+
 /// Entry into the F11 path for a window that has a remembered normal state.
+/// `contained` = it was maximize-contained in its zone just before.
+/// Only a window that was IN its zone keeps its fullscreen there: a
+/// free-floating window (never snapped, or moved out of its zone) going
+/// fullscreen (Parsec connecting, a game, a player) gets the whole display.
 fn fs_entry(
     normal: &NormalState,
     mon: &Monitor,
     layout: Option<&Layout>,
     pol: &Policy,
+    contained: bool,
 ) -> Action {
     // the user put this window into fullscreen on another display than
     // its home: respect it, do not drag it back
     if normal.monitor != mon.name {
         return Action::Ignore;
     }
-    match (layout.and_then(|l| zone_target(l, mon, normal)), pol.fs_exit_key) {
-        (Some(t), Some(vk)) if pol.fs_stable => Action::SendFsExitKey { vk, target: t },
-        (Some(t), _) => Action::ContainFsMove(t),
-        (None, _) => Action::Ignore,
+    let Some(t) = layout.and_then(|l| zone_target(l, mon, normal)) else {
+        return Action::Ignore;
+    };
+    let gap_t = t.inflate(-pol.zone_gap);
+    if !contained && !crate::resnap::fills_zone_within(&normal.rect, &gap_t, ZONE_FIT_TOL) {
+        return Action::Ignore;
+    }
+    match pol.fs_exit_key {
+        Some(vk) if pol.fs_stable => Action::SendFsExitKey { vk, target: t },
+        _ => Action::ContainFsMove(t),
     }
 }
 
@@ -190,7 +205,7 @@ pub fn decide(
                 }
             } else if covers {
                 match &normal {
-                    Some(n) => fs_entry(n, mon, layout, pol),
+                    Some(n) => fs_entry(n, mon, layout, pol, false),
                     None => Action::Ignore, // born covering: games, splashes
                 }
             } else if matches!(prev_state, Some(WinState::Normal(_)))
@@ -226,7 +241,7 @@ fn decide_locked(
             }
             if covers {
                 // F11 pressed while maximize-locked.
-                return fs_entry(&l.normal, mon, layout, pol);
+                return fs_entry(&l.normal, mon, layout, pol, true);
             }
             if info.rect.approx_eq(&l.target, pol.fullscreen_tolerance) {
                 return Action::Nothing;
@@ -516,6 +531,15 @@ mod tests {
         }
     }
 
+    /// Snapped in zone 0: window rect = zone + invisible borders.
+    fn snapped_zone0() -> WinState {
+        WinState::Normal(NormalState {
+            rect: Rect::new(-7, 0, 1727, 1407),
+            monitor: "\\\\.\\DISPLAY1".into(),
+            zone: 0,
+        })
+    }
+
     fn normal_zone0() -> WinState {
         WinState::Normal(NormalState {
             rect: Rect::new(100, 100, 900, 700),
@@ -584,7 +608,7 @@ mod tests {
 
     #[test]
     fn f11_holds_fullscreen_in_zone_even_with_exit_key() {
-        let st = normal_zone0();
+        let st = snapped_zone0();
         let f11 = info(Rect::new(0, 0, 3440, 1440), false);
         match decide(&f11, Some(&st), Some(&mon()), Some(&layout()), None, &pol(Some(F11))) {
             Action::ContainFsMove(r) => assert_eq!(r, Rect::new(0, 0, 1720, 1400)),
@@ -594,7 +618,7 @@ mod tests {
 
     #[test]
     fn stable_app_takes_the_exit_key_path() {
-        let st = normal_zone0();
+        let st = snapped_zone0();
         let f11 = info(Rect::new(0, 0, 3440, 1440), false);
         let mut p = pol(Some(F11));
         p.fs_stable = true;
@@ -711,8 +735,39 @@ mod tests {
     }
 
     #[test]
+    fn fullscreen_of_a_window_outside_its_zone_gets_the_whole_display() {
+        // never snapped / moved out of its zone (Parsec connecting, a
+        // player, a game): real fullscreen, not held in a zone
+        let covering = info(Rect::new(0, 0, 3440, 1440), false);
+        for key in [Some(F11), None] {
+            assert_eq!(
+                decide(&covering, Some(&normal_zone0()), Some(&mon()), Some(&layout()), None, &pol(key)),
+                Action::Ignore
+            );
+        }
+        // maximize-contained in its zone, then F11: held in the zone
+        let mut maxed = held(0, HOME);
+        if let WinState::Locked(l) = &mut maxed {
+            l.kind = LockKind::Maximize;
+        }
+        assert!(matches!(
+            decide(&covering, Some(&maxed), Some(&mon()), Some(&layout()), None, &pol(Some(F11))),
+            Action::ContainFsMove(_)
+        ));
+        // snapped, but a bit wider than the zone (app minimum size): held
+        let wide = WinState::Normal(NormalState {
+            rect: Rect::new(-7, 0, 1900, 1407),
+            monitor: HOME.into(),
+            zone: 0,
+        });
+        assert!(matches!(
+            decide(&covering, Some(&wide), Some(&mon()), Some(&layout()), None, &pol(Some(F11))),
+            Action::ContainFsMove(_)
+        ));
+    }
+    #[test]
     fn f11_without_key_tries_plain_move() {
-        let st = normal_zone0();
+        let st = snapped_zone0();
         let f11 = info(Rect::new(0, 0, 3440, 1440), false);
         match decide(&f11, Some(&st), Some(&mon()), Some(&layout()), None, &pol(None)) {
             Action::ContainFsMove(r) => assert_eq!(r, Rect::new(0, 0, 1720, 1400)),

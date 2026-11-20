@@ -42,6 +42,12 @@ zones. Rust + windows-rs, single static exe, no admin, no DLL injection.
   drawing through `uimodel::commit_editor_layout` (pending name -> user
   preset; free drawing -> name of the identical preset or "Custom") and
   `close_all` calls `webui::refresh()` so the panel updates.
+- Fullscreen is held in a zone ONLY when the window sat in its zone
+  just before (`engine::fs_entry`: normal rect fills the zone within
+  `ZONE_FIT_TOL` = 16 px of invisible borders via
+  `resnap::fills_zone_within`, or it was maximize-contained). A
+  free-floating window going fullscreen (Parsec / RDP connecting, games,
+  players moved out of their zone) -> `Ignore` = whole display.
 - Fullscreen (engine `ContainFsMove` / `LockKind::ZoneFsMoved`): the app
   STAYS in its own fullscreen and `place::hold_fullscreen` resizes it into
   the zone with `SWP_NOSENDCHANGING` (plain SetWindowPos is undone by
