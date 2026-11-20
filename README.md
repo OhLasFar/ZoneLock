@@ -116,13 +116,16 @@ Right-click the tray icon for **Active** (pause / resume) and **Quit**.
 
 ## Shortcuts
 
-All of them can be changed in **Settings → Shortcuts**.
+All of them can be changed in **Settings → Shortcuts**. Forgot one? Press
+`Win+Alt+H`: a card in the middle of the screen lists them all.
 
 | Shortcut | Action |
 |---|---|
+| `Win+Alt+H` | Show every shortcut (Esc or the same keys to close) |
 | `Shift` + drag a window | Show the zones and snap the window into one |
 | `Win+Ctrl+Alt+→` | Move the active window to the next zone |
 | `Win+Ctrl+Alt+←` | Move the active window to the previous zone |
+| `Win+Ctrl+Alt+↑` | Fullscreen window: switch between its zone and the whole screen (no buttons needed, handy for Parsec or games) |
 | `Win+Alt+P` | Next preset on the display under the mouse |
 | `Win+Alt+E` | Zone editor: draw, move and resize zones on every display |
 | `Win+Alt+Z` | Pause / resume ZoneLock |

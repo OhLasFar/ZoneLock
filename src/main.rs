@@ -163,6 +163,11 @@ fn handle_cmd(shared: &Arc<Shared>, cmd: UiCmd) {
         }
         UiCmd::NextZone => step_zone(shared, 1),
         UiCmd::PrevZone => step_zone(shared, -1),
+        UiCmd::FsToggle => watcher::post_fs_toggle(unsafe { GetForegroundWindow() }),
+        UiCmd::Cheatsheet => {
+            let hk = shared.config.read().unwrap().hotkeys.clone();
+            zonelock::cheatsheet::toggle(&hk);
+        }
         UiCmd::ToggleAutostart => {
             let mut cfg = shared.config.write().unwrap();
             let on = !autostart::is_enabled();

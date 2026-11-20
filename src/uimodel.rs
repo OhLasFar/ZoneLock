@@ -280,6 +280,8 @@ pub fn apply_settings(cfg: &Config, s: &UiSettings) -> Result<Config, UiError> {
         ("next_preset", "Next preset", &s.hotkeys.next_preset),
         ("next_zone", "Window to next zone", &s.hotkeys.next_zone),
         ("prev_zone", "Window to previous zone", &s.hotkeys.prev_zone),
+        ("fs_toggle", "Fullscreen: zone or whole screen", &s.hotkeys.fs_toggle),
+        ("cheatsheet", "Show all shortcuts", &s.hotkeys.cheatsheet),
     ];
     let mut seen: Vec<(&str, _)> = Vec::new();
     for (field, name, v) in hk {
@@ -347,6 +349,8 @@ pub fn apply_settings(cfg: &Config, s: &UiSettings) -> Result<Config, UiError> {
         next_preset: s.hotkeys.next_preset.trim().to_string(),
         next_zone: s.hotkeys.next_zone.trim().to_string(),
         prev_zone: s.hotkeys.prev_zone.trim().to_string(),
+        fs_toggle: s.hotkeys.fs_toggle.trim().to_string(),
+        cheatsheet: s.hotkeys.cheatsheet.trim().to_string(),
         plan_go: go.to_string(),
         plan_save: save.to_string(),
     };

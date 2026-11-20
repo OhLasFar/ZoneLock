@@ -485,6 +485,8 @@ function buildShortcuts() {
     ['next_preset', 'Next preset', 'On the display under the mouse.'],
     ['next_zone', 'Window to next zone', 'Moves the active window.'],
     ['prev_zone', 'Window to previous zone', 'Moves the active window back.'],
+    ['fs_toggle', 'Fullscreen: zone or whole screen', 'A fullscreen window in its zone takes the whole screen, and back.'],
+    ['cheatsheet', 'Show all shortcuts', 'A card in the middle of the screen. Esc or the same keys close it.'],
   ]) {
     const box = KeyBox('combo', ''); box.dataset.k = 'hotkeys.' + k;
     const st = el('span', 'st'); st.dataset.st = k;

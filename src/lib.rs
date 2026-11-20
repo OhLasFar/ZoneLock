@@ -2,6 +2,7 @@
 //! inspection, containment engine and the WinEvent watcher.
 
 pub mod autostart;
+pub mod cheatsheet;
 pub mod config;
 pub mod dragzones;
 pub mod engine;
