@@ -56,6 +56,15 @@ for you, even after a reboot.
 `Ctrl+Alt+Shift+1…9` saves the apps you have open as plan 1–9.
 `Alt+Shift+1…9` goes to that plan. Nothing to set up first.
 
+**On a laptop?** Link a plan to each set of screens in
+**Settings → Plans → Plans that follow your screens**: a "docked" plan for laptop +
+monitor, a "laptop only" plan for the road. Unplug the monitor and the open
+windows of the laptop plan go to their place; plug it back and the docked
+plan returns. Nothing is launched or minimized, and the focus stays where it
+is. Each screen is recognised by its model and serial number (two identical
+monitors stay apart), whatever the port or dock, and virtual
+displays (Parsec, Remote Desktop) are ignored.
+
 ## Features
 
 | | |
@@ -68,6 +77,7 @@ for you, even after a reboot.
 | **Plans 1–9** | Save the apps you have open and where they are, then switch with `Alt+Shift+1…9`. Apps that are not running are launched and put back in place, everything else is minimized. Survives reboots. |
 | **Reopen where you left it** | Close an app, open it later: it comes back on the same display, at the same spot. |
 | **Display changes handled** | Change resolution, scaling or the taskbar, unplug a monitor: windows go back into their zones. A missing display falls back to the main one. |
+| **A plan per set of screens** | Docked and laptop-only plans: unplugging or plugging a monitor puts the open windows where that setup's plan wants them. |
 | **Settings panel** | A clean panel from the tray icon. Every change applies instantly. Shortcuts are recorded by pressing them, on any keyboard layout. |
 | **Updates in one click** | ZoneLock tells you when a new version is out and installs it for you (Settings → System). Can be turned off. |
 | **Light** | ~1 MB, ~2 MB of RAM in the background. The settings window only runs while it is open. |
@@ -76,7 +86,7 @@ for you, even after a reboot.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/assets/settings-displays.png" alt="Displays page: each display has its own layout, your presets come first"><br><sub><b>Displays.</b> A layout per monitor, your own presets first.</sub></td>
+<td width="50%"><img src="docs/assets/settings-displays.png" alt="Displays page: the screens drawn as in Windows, the selected one with its zones and the layouts to pick from"><br><sub><b>Displays.</b> Your screens as in Windows, each with its own zones.</sub></td>
 <td width="50%"><img src="docs/assets/settings-plans.png" alt="Plans page: saved workspaces with their apps"><br><sub><b>Plans.</b> Workspaces you switch with one shortcut.</sub></td>
 </tr>
 <tr>
@@ -168,8 +178,9 @@ press a different combination.
 <details>
 <summary><b>Where are my settings?</b></summary>
 
-`%APPDATA%\ZoneLock\`: `config.json` (zones, presets, plans, shortcuts) and
-`positions.json` (where each app was last left). Uninstalling keeps them, so
+`%APPDATA%\ZoneLock\`: `config.json` (zones, presets, plans, shortcuts),
+`positions.json` (where each app was last left) and `setups.json` (the sets
+of screens seen, for plans that follow your screens). Uninstalling keeps them, so
 reinstalling brings everything back. Delete the folder for a clean start.
 </details>
 

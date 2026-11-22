@@ -459,6 +459,7 @@ mod tests {
             dpi_y: 96,
             primary: true,
             handle: 1,
+            ..Default::default()
         }
     }
 

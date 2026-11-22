@@ -32,6 +32,9 @@ pub enum UiCmd {
     PlanSave(u8),
     /// Update status changed (worker thread -> UI thread): refresh the page.
     UpdateChanged,
+    /// The display setup changed (watcher -> UI thread); Some(n) = arrange
+    /// plan n, linked to the new setup.
+    SetupChanged(Option<u8>),
     Exit,
 }
 
@@ -39,6 +42,8 @@ pub const TRAY_MSG: u32 = WM_APP + 1;
 /// Posted by the update worker: wparam 1 = also show the "new version"
 /// balloon.
 const UPDATE_MSG: u32 = WM_APP + 2;
+/// Posted by the watcher: wparam = plan slot to arrange, 0 = none.
+const SETUP_MSG: u32 = WM_APP + 3;
 /// Balloon clicked (NIN_BALLOONUSERCLICK = WM_USER + 5).
 const NIN_BALLOONUSERCLICK: u32 = WM_USER + 5;
 
@@ -57,6 +62,11 @@ fn post_tray(msg: u32, wparam: usize) {
 /// From any thread: the update status changed (alloon: announce it).
 pub fn post_update(balloon: bool) {
     post_tray(UPDATE_MSG, balloon as usize);
+}
+
+/// From the watcher: the display setup changed (Some = arrange that plan).
+pub fn post_setup(plan: Option<u8>) {
+    post_tray(SETUP_MSG, plan.unwrap_or(0) as usize);
 }
 
 /// From any thread: quit ZoneLock cleanly (after starting an update).
@@ -143,6 +153,12 @@ unsafe extern "system" fn wndproc(
             };
             if let (Some(c), Some(h)) = (cmd, handler()) {
                 h(c);
+            }
+            LRESULT(0)
+        }
+        x if x == SETUP_MSG => {
+            if let Some(h) = handler() {
+                h(UiCmd::SetupChanged((wparam.0 != 0).then_some(wparam.0 as u8)));
             }
             LRESULT(0)
         }

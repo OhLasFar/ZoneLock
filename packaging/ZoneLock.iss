@@ -2,7 +2,7 @@
 ; Build: packaging\package.ps1 (passes the version), or
 ;        iscc /DAppVersion=1.0.0 packaging\ZoneLock.iss   (Inno Setup 6+)
 #ifndef AppVersion
-  #define AppVersion "1.0.5"
+  #define AppVersion "1.0.7"
 #endif
 
 [Setup]

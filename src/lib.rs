@@ -19,6 +19,7 @@ pub mod plans;
 pub mod presets;
 pub mod rect;
 pub mod resnap;
+pub mod setups;
 pub mod settings;
 pub mod state;
 pub mod tray;

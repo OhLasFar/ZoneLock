@@ -74,16 +74,32 @@ low-end PCs for no gain in a settings window.
   (switch) | remove. Stable = frameless, no flash, browser bars visible.
 - **Table**: mono caps heads, borderless cells that show a field on hover
   or focus, `×` removes, `+ Add …` in the card header.
-- **Display card**: header = name + size/primary/layout-kind badges +
-  `+ New preset` (primary). Body: preview on top (max 440px), then preset
-  chips below: "Your presets" first, then "Built-in". A "Custom" layout
-  (drawn, unnamed) shows a note with `Save as preset`.
+- **Displays page** (zones only): (1) `Your screens` card (only with 2+
+  screens): the screens drawn where Windows places them (`Arrangement`),
+  zones faint, number + name caption, click selects (primary ring); the
+  choice is kept per viewer (`zl-mon`). (2) the selected **display card**:
+  header = name ("Built-in display", the model, else "Display N") +
+  size/primary/layout-kind badges + a one-line "how to snap" using the
+  user's keys + `+ Draw my own` (primary). Body in two columns: "Zones
+  now" preview left (with the `Save as preset` note for a "Custom"
+  layout, a duplicate-mode note and "Is this a new screen?" = replace an
+  old screen), "Pick a layout" chips right (yours first, then built-in).
+- **Plans page, `Plans that follow your screens` card**: one plain sentence in
+  the header (what it does, nothing opened/minimized), then one
+  row per remembered set of screens (mini arrangement, label, `Connected`
+  badge or last seen, "When connected, arrange" plan select, `×` forget
+  except the connected one), a muted footer hint.
+- **Confirm dialog** (`Confirm({title, body, ok, onOk})`): scrim + card,
+  says exactly what will happen; Cancel focused first, Esc / click
+  outside cancel, confirm button `solid-danger`. Used before Replace and
+  Clear on a plan.
 - **New preset flow**: name field + `Draw zones` -> editor opens with
   `New preset "name"` in its hint -> Enter saves the preset and applies it
   to that display. `Edit` on a user preset reopens the editor on it.
 - **Preset chip**: mini layout + name; current one has a primary ring;
   user presets have their name in `ok` and a star tile in the top-right
-  corner.
+  corner, replaced on hover/focus by Edit (pencil) and Delete (bin) icon
+  buttons. There is no separate "Your presets" table.
 - **Toast**: bottom right, dot coloured by result. Every change that is
   applied gets one (`Saved`) or an error toast and a red field.
 

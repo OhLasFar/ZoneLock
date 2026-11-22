@@ -94,7 +94,18 @@ struct Ctx {
     /// Fullscreen windows the user sent to the whole display with the
     /// fs_toggle keys: their zone lock, to send them back on a 2nd press.
     released_fs: std::collections::HashMap<isize, crate::state::LockedState>,
+    /// Display setup connected now (`setups::key_of`).
+    setup_key: String,
+    /// The setup changed: (setup before the change, when to act). The
+    /// linked plan is arranged once the screens have settled; changing
+    /// back meanwhile cancels it.
+    setup_due: Option<(String, Instant)>,
 }
+
+/// How long the screens must stay the same before a setup's plan is
+/// arranged: Windows moves windows and apps re-layout in several steps
+/// (longer than RESNAP_WINDOW, so the re-snap pass is over).
+const SETUP_SETTLE: Duration = Duration::from_millis(3000);
 
 /// How long after leaving fullscreen a self-inflicted move is undone.
 const SETTLE_WINDOW: Duration = Duration::from_millis(1500);
@@ -327,6 +338,41 @@ fn display_changed(ctx: &mut Ctx, old: &[Monitor], new: &[Monitor]) {
     }
     ctx.resnap_until = Some(Instant::now() + RESNAP_WINDOW);
     resnap_pass(ctx, new);
+}
+
+/// Follow the display setup: remember a new one, and once the screens
+/// have settled on a setup linked to a plan, ask the UI thread to
+/// arrange that plan (`plans::arrange`).
+fn setup_tick(ctx: &mut Ctx, mons: &[Monitor]) {
+    let key = crate::setups::key_of(mons);
+    let now = Instant::now();
+    if key != ctx.setup_key {
+        log::line(format!("display setup: {} -> {}", ctx.setup_key, key));
+        crate::setups::record_current(mons);
+        let from = match ctx.setup_due.take() {
+            Some((from, _)) => from,
+            None => std::mem::take(&mut ctx.setup_key),
+        };
+        ctx.setup_key = key;
+        ctx.setup_due = Some((from, now + SETUP_SETTLE));
+        crate::tray::post_setup(None);
+        return;
+    }
+    let Some((from, at)) = ctx.setup_due.clone() else { return };
+    if now < at {
+        return;
+    }
+    ctx.setup_due = None;
+    let cfg = ctx.shared.config.read().unwrap().clone();
+    if !cfg.enabled {
+        return;
+    }
+    if let Some(slot) = crate::setups::plan_to_apply(&cfg, &from, &ctx.setup_key) {
+        // the plan decides where windows go now, not the re-snap pass
+        ctx.resnap_until = None;
+        log::line(format!("display setup {}: arranging plan {slot}", ctx.setup_key));
+        crate::tray::post_setup(Some(slot));
+    }
 }
 
 /// Put every window that sat in a zone before the display change back in
@@ -738,6 +784,8 @@ pub fn run(shared: Arc<Shared>) {
             Ordering::SeqCst,
         );
     }
+    let start_mons = shared.monitors.read().unwrap().clone();
+    crate::setups::record_current(&start_mons);
     CTX.with(|c| {
         *c.borrow_mut() = Some(Ctx {
             shared: shared.clone(),
@@ -747,6 +795,8 @@ pub fn run(shared: Arc<Shared>) {
             drag: None,
             settle: Default::default(),
             released_fs: Default::default(),
+            setup_key: crate::setups::key_of(&start_mons),
+            setup_due: None,
         });
     });
 
@@ -912,6 +962,7 @@ fn periodic_tick(shared: &Arc<Shared>, _tid: u32) {
     if let Some(old) = changed_from {
         with_ctx(|ctx| display_changed(ctx, &old, &mons));
     }
+    with_ctx(|ctx| setup_tick(ctx, &mons));
     with_ctx(|ctx| {
         if ctx.resnap_until.is_some_and(|t| Instant::now() < t) {
             resnap_pass(ctx, &mons);
@@ -1039,6 +1090,8 @@ pub fn install_for_test(shared: Arc<Shared>) {
             drag: None,
             settle: Default::default(),
             released_fs: Default::default(),
+            setup_key: String::new(),
+            setup_due: None,
         });
     });
 }

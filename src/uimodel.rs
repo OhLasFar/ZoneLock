@@ -48,17 +48,49 @@ pub struct PlanWinUi {
 pub struct PlanUi {
     pub slot: u8,
     pub windows: Vec<PlanWinUi>,
+    /// Display setup key it was saved on ("" for older plans).
+    pub setup: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MonitorUi {
     /// GDI device name, the layout key.
     pub id: String,
+    /// Hardware id ("" when Windows does not tell).
+    pub hw_id: String,
+    /// "Built-in display", the model name, else "Display N".
     pub label: String,
+    /// Left-to-right number, as in "Display 2".
+    pub number: usize,
+    pub x: i32,
+    pub y: i32,
     pub width: i32,
     pub height: i32,
     pub primary: bool,
+    pub internal: bool,
+    /// Labels of screens showing the same picture (duplicate mode).
+    pub clones: Vec<String>,
     pub layout: LayoutUi,
+}
+
+/// A remembered display setup, as the Displays page lists it.
+#[derive(Debug, Clone, Serialize)]
+pub struct SetupUi {
+    pub key: String,
+    pub label: String,
+    /// Connected right now.
+    pub current: bool,
+    /// Plan arranged when this setup gets connected.
+    pub plan: Option<u8>,
+    /// The plan comes from the link of the same screens before one was
+    /// replaced by the same model (no link of its own yet).
+    pub inherited: bool,
+    /// No plan, but it looks like `hint_from` with one screen replaced by
+    /// another model: offer to keep plan `hint_plan`.
+    pub hint_plan: Option<u8>,
+    pub hint_from: String,
+    pub last_seen: u64,
+    pub displays: Vec<crate::setups::SetupDisplay>,
 }
 
 /// Everything the page needs to render.
@@ -85,6 +117,12 @@ pub struct UiState {
     pub presets: Vec<LayoutUi>,
     /// Saved plans (slots 1-9 that have one).
     pub plans: Vec<PlanUi>,
+    /// Screens seen before and not connected now, most recent first
+    /// (filled by the host): what a new screen can replace.
+    pub old_screens: Vec<OldScreenUi>,
+    /// Remembered display setups, the connected one first (filled by the
+    /// host from setups.json, see `setups_ui`).
+    pub setups: Vec<SetupUi>,
     /// Display label of every key binding shown (hotkeys + exit keys) on
     /// the current keyboard layout, e.g. "Ctrl+Alt+VK_DE" -> "Ctrl+Alt+Ù".
     /// Filled by the host (needs Win32).
@@ -127,6 +165,13 @@ pub enum PageMsg {
     /// Redraw an existing user preset in the editor on that display.
     EditPreset { monitor: String, name: String },
     DeletePreset { name: String },
+    /// Link a display setup to a plan (None = no plan).
+    SetupPlan { key: String, slot: Option<u8> },
+    /// Forget a remembered display setup (and its plan link).
+    ForgetSetup { key: String },
+    /// The connected screen `monitor` (device name) replaces the old
+    /// screen `old` (hardware id): plans, setups, zones move over.
+    ReplaceScreen { old: String, monitor: String },
     /// Plans: save the current windows into slot, go to it, or clear it.
     PlanSave { slot: u8 },
     PlanGo { slot: u8 },
@@ -225,10 +270,16 @@ pub fn build_state(cfg: &Config, autostart: bool, monitors: &[Monitor]) -> UiSta
                 let l = cfg.layouts.for_monitor(&m.name, m.index).unwrap_or(&empty);
                 MonitorUi {
                     id: m.name.clone(),
-                    label: format!("Display {}", m.index + 1),
+                    hw_id: m.hw_id.clone(),
+                    label: crate::monitor::display_label(m),
+                    number: m.index + 1,
+                    x: m.rect.left,
+                    y: m.rect.top,
                     width: m.rect.right - m.rect.left,
                     height: m.rect.bottom - m.rect.top,
                     primary: m.primary,
+                    internal: m.internal,
+                    clones: m.clones.iter().map(|c| c.1.clone()).collect(),
                     layout: layout_ui(l, is_builtin(&l.name)),
                 }
             })
@@ -244,15 +295,123 @@ pub fn build_state(cfg: &Config, autostart: bool, monitors: &[Monitor]) -> UiSta
                         .map(|w| PlanWinUi {
                             exe: w.exe.clone(),
                             title: w.title.clone(),
-                            monitor: w.monitor.clone(),
+                            // the display it would go to now
+                            monitor: crate::plans::resolve_monitor(
+                                w,
+                                monitors,
+                                Some(
+                                    &crate::plans::plan_screens(p)
+                                        .into_iter()
+                                        .filter(|s| *s != w.monitor_hw)
+                                        .collect::<Vec<_>>(),
+                                ),
+                            )
+                            .map(|m| m.name.clone())
+                                .unwrap_or_else(|| w.monitor.clone()),
                             rect: [w.rect.left, w.rect.top, w.rect.right, w.rect.bottom],
                         })
                         .collect(),
+                    setup: p.setup.clone(),
                 })
             })
             .collect(),
         key_labels: Default::default(),
+        setups: vec![],
+        old_screens: vec![],
     }
+}
+
+/// The remembered setups for the page: the connected one first (listed
+/// even before it was saved), then the others, most recent first. Pure.
+pub fn setups_ui(cfg: &Config, known: &[crate::setups::Setup], current: &crate::setups::Setup) -> Vec<SetupUi> {
+    let ui = |s: &crate::setups::Setup, is_current: bool| {
+        let hint = crate::setups::replacement_hint(cfg, known, &s.key);
+        SetupUi {
+        hint_plan: hint.map(|h| h.0),
+        hint_from: hint.map(|h| crate::setups::label(h.1)).unwrap_or_default(),
+        key: s.key.clone(),
+        label: crate::setups::label(s),
+        current: is_current,
+        plan: crate::setups::linked_plan(cfg, &s.key).map(|p| p.0),
+        inherited: crate::setups::linked_plan(cfg, &s.key).is_some_and(|p| p.1),
+        last_seen: s.last_seen,
+        displays: s.displays.clone(),
+    }
+    };
+    std::iter::once(ui(current, true))
+        .chain(known.iter().filter(|s| s.key != current.key).map(|s| ui(s, false)))
+        .collect()
+}
+
+/// A screen seen before, not connected now (the "replaces" list).
+#[derive(Debug, Clone, Serialize)]
+pub struct OldScreenUi {
+    pub id: String,
+    pub label: String,
+    pub last_seen: u64,
+    /// Screens it was connected with: none of them can replace it.
+    pub with: Vec<String>,
+}
+
+/// Screen `old_id` (its device name was `old_gdi`) was replaced by `new`:
+/// plan windows, setup links and its zones move to the new screen. Pure.
+pub fn replace_screen(cfg: &Config, old_id: &str, old_gdi: &str, new: &Monitor) -> Result<Config, UiError> {
+    if new.hw_id.is_empty() {
+        return Err(err("screens", "Windows does not identify this screen, so nothing can be moved to it."));
+    }
+    if old_id.is_empty() || old_id == new.hw_id {
+        return Err(err("screens", "Pick the old screen this one replaces."));
+    }
+    let mut out = cfg.clone();
+    for p in out.plans.values_mut() {
+        for w in p.windows.iter_mut().filter(|w| w.monitor_hw == old_id) {
+            w.monitor_hw = new.hw_id.clone();
+            w.monitor = new.name.clone();
+            w.monitor_index = new.index;
+        }
+        let mut ids: Vec<String> = p.setup.split('+').map(String::from).collect();
+        if let Some(i) = ids.iter().position(|x| x == old_id) {
+            ids[i] = new.hw_id.clone();
+            ids.sort();
+            p.setup = ids.join("+");
+        }
+    }
+    let links: Vec<(String, u8)> = out.setup_plans.iter().map(|(k, v)| (k.clone(), *v)).collect();
+    for (k, slot) in links {
+        let mut ids: Vec<String> = k.split('+').map(String::from).collect();
+        let Some(i) = ids.iter().position(|x| x == old_id) else { continue };
+        ids[i] = new.hw_id.clone();
+        ids.sort();
+        out.setup_plans.remove(&k);
+        // a link the new setup already has wins
+        out.setup_plans.entry(ids.join("+")).or_insert(slot);
+    }
+    if !old_gdi.is_empty() && old_gdi != new.name {
+        if let Some(l) = cfg.layouts.by_monitor.get(old_gdi).cloned() {
+            out.layouts.set_for_monitor(&new.name, l);
+        }
+    }
+    Ok(out)
+}
+
+/// Link setup `key` to plan `slot` (None = unlink).
+pub fn set_setup_plan(cfg: &Config, key: &str, slot: Option<u8>) -> Result<Config, UiError> {
+    let mut out = cfg.clone();
+    match slot {
+        None => {
+            out.setup_plans.remove(key);
+        }
+        Some(n) => {
+            if !cfg.plans.contains_key(&n.to_string()) {
+                return Err(err("setups", &format!("Plan {n} is empty. Save it first on the Plans page.")));
+            }
+            if key.is_empty() {
+                return Err(err("setups", "Unknown display setup."));
+            }
+            out.setup_plans.insert(key.to_string(), n);
+        }
+    }
+    Ok(out)
 }
 
 fn clean_list(v: &[String], lower: bool) -> Vec<String> {
@@ -452,6 +611,8 @@ pub fn set_plan(cfg: &Config, slot: u8, plan: crate::plans::Plan) -> Result<Conf
 pub fn clear_plan(cfg: &Config, slot: u8) -> Config {
     let mut out = cfg.clone();
     out.plans.remove(&slot.to_string());
+    // a cleared plan is no longer arranged for any setup
+    out.setup_plans.retain(|_, n| *n != slot);
     out
 }
 
@@ -543,6 +704,7 @@ mod tests {
             dpi_y: 96,
             primary: index == 0,
             handle: 0,
+            ..Default::default()
         }
     }
 
@@ -628,8 +790,10 @@ mod tests {
                 title: "Discord".into(),
                 monitor: "D1".into(),
                 monitor_index: 0,
+                monitor_hw: String::new(),
                 rect: crate::rect::FracRect::new(0.0, 0.0, 0.5, 1.0),
             }],
+            setup: String::new(),
         };
         assert!(set_plan(&cfg, 0, plan.clone()).is_err());
         assert!(set_plan(&cfg, 3, crate::plans::Plan::default()).is_err());
@@ -638,6 +802,42 @@ mod tests {
         assert_eq!(st.plans.len(), 1);
         assert_eq!((st.plans[0].slot, st.plans[0].windows[0].exe.as_str()), (3, "discord.exe"));
         assert!(clear_plan(&cfg, 3).plans.is_empty());
+
+        // setups: link only existing plans; clearing the plan unlinks it
+        assert_eq!(set_setup_plan(&cfg, "L", Some(4)).unwrap_err().field, "setups");
+        let linked = set_setup_plan(&cfg, "L", Some(3)).unwrap();
+        assert_eq!(linked.setup_plans.get("L"), Some(&3));
+        assert!(set_setup_plan(&linked, "L", None).unwrap().setup_plans.is_empty());
+        assert!(clear_plan(&linked, 3).setup_plans.is_empty());
+        // a replaced screen: plan windows, links and zones move over
+        let mut c2 = linked.clone();
+        let mut p = c2.plans["3"].clone();
+        p.windows[0].monitor_hw = "GAME-1~a".into();
+        p.windows[0].monitor = "D2".into();
+        p.setup = "GAME-1~a+L".into();
+        c2.plans.insert("3".into(), p);
+        c2.setup_plans.insert("GAME-1~a+L".into(), 3);
+        c2.layouts.set_for_monitor("D2", crate::zones::Layout::halves());
+        let mut new = mon("D5", 1);
+        new.hw_id = "GAME-2~b".into();
+        let moved = replace_screen(&c2, "GAME-1~a", "D2", &new).unwrap();
+        let w = &moved.plans["3"].windows[0];
+        assert_eq!((w.monitor_hw.as_str(), w.monitor.as_str(), w.monitor_index), ("GAME-2~b", "D5", 1));
+        assert_eq!(moved.plans["3"].setup, "GAME-2~b+L");
+        assert_eq!(moved.setup_plans.get("GAME-2~b+L"), Some(&3));
+        assert!(!moved.setup_plans.contains_key("GAME-1~a+L"));
+        assert_eq!(moved.layouts.by_monitor.get("D5").map(|l| l.name.as_str()), Some("halves"));
+        assert_eq!(replace_screen(&c2, "GAME-2~b", "", &new).unwrap_err().field, "screens");
+        new.hw_id.clear();
+        assert!(replace_screen(&c2, "GAME-1~a", "D2", &new).is_err());
+
+        let cur = crate::setups::Setup { key: "L".into(), displays: vec![], last_seen: 9 };
+        let old = crate::setups::Setup { key: "L+X".into(), displays: vec![], last_seen: 5 };
+        let list = setups_ui(&linked, &[old.clone(), cur.clone()], &cur);
+        assert_eq!(
+            list.iter().map(|s| (s.key.as_str(), s.current, s.plan)).collect::<Vec<_>>(),
+            vec![("L", true, Some(3)), ("L+X", false, None)]
+        );
     }
 
     #[test]

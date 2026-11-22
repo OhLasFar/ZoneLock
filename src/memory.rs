@@ -26,6 +26,9 @@ pub struct Spot {
     pub monitor: String,
     #[serde(default)]
     pub monitor_index: usize,
+    /// Hardware id of the display (see `Monitor::hw_id`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub monitor_hw: String,
     /// Visible frame as a fraction of the display's work area.
     pub rect: FracRect,
 }
@@ -85,6 +88,25 @@ fn with_mem<R>(f: impl FnOnce(&mut Memory) -> R) -> R {
     f(g.as_mut().unwrap())
 }
 
+/// Settings page: screen `old` was replaced by `new`: remembered spots on
+/// it now point at the new one.
+pub fn replace_screen(old: &str, new_hw: &str, new_name: &str, new_index: usize) {
+    let n = with_mem(|m| {
+        let mut n = 0;
+        for s in m.apps.values_mut().filter(|s| s.monitor_hw == old) {
+            s.monitor_hw = new_hw.to_string();
+            s.monitor = new_name.to_string();
+            s.monitor_index = new_index;
+            n += 1;
+        }
+        n
+    });
+    if n > 0 {
+        DIRTY.store(true, Ordering::Relaxed);
+        flush();
+    }
+}
+
 /// Write positions.json if something changed (cheap no-op otherwise).
 pub fn flush() {
     if !DIRTY.swap(false, Ordering::Relaxed) || BROKEN.load(Ordering::Relaxed) {
@@ -134,6 +156,7 @@ mod win {
         let spot = Spot {
             monitor: mon.name.clone(),
             monitor_index: mon.index,
+            monitor_hw: mon.hw_id.clone(),
             rect: FracRect::from_pixels(&vis, &mon.work),
         };
         if with_mem(|m| m.remember(key(&info.exe, &info.class), spot)) {
@@ -172,6 +195,7 @@ mod win {
             title: String::new(),
             monitor: spot.monitor.clone(),
             monitor_index: spot.monitor_index,
+            monitor_hw: spot.monitor_hw.clone(),
             rect: spot.rect,
         };
         let Some(target) = crate::plans::target_rect(&pw, mons) else { return false };
@@ -196,6 +220,7 @@ mod tests {
         Spot {
             monitor: "D1".into(),
             monitor_index: 0,
+            monitor_hw: String::new(),
             rect: FracRect::new(l, 0.0, l + 0.25, 1.0),
         }
     }

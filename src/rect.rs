@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Physical-pixel rectangle (exclusive bottom/right, like `RECT`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rect {
     pub left: i32,
     pub top: i32,

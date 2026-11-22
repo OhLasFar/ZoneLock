@@ -163,7 +163,6 @@ main::-webkit-scrollbar-thumb{background:var(--dp-muted-bg);border-radius:10px;b
 .c-keys{grid-template-columns:1fr 150px 70px 36px}
 .c-keys .sw{justify-self:start}
 .c-one{grid-template-columns:1fr 36px}
-.c-preset{grid-template-columns:96px 1fr 90px 70px 84px}
 .x{width:36px;height:36px;border-radius:var(--r-md);color:var(--dp-muted);display:grid;place-items:center}
 .x:hover{color:var(--dp-danger);background:color-mix(in srgb,var(--dp-danger) 10%,transparent)}
 .x svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round}
@@ -177,8 +176,16 @@ main::-webkit-scrollbar-thumb{background:var(--dp-muted-bg);border-radius:10px;b
 .dims{display:flex;justify-content:space-between;gap:8px;margin-top:8px;font:11px var(--mono);color:var(--dp-muted)}
 .chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:8px}
 .chip{position:relative;display:flex;flex-direction:column;gap:6px;padding:7px;border-radius:var(--r-md);box-shadow:var(--ring);background:rgb(255 255 255 / .015);text-align:left;min-width:0}
+.chip{cursor:pointer}
 .chip .corner{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;background:color-mix(in srgb,var(--dp-ok) 18%,var(--dp-card));color:var(--dp-ok);z-index:1}
 .chip .corner svg{width:11px;height:11px;fill:currentColor}
+.chip .tools{position:absolute;top:3px;right:3px;display:none;gap:3px;z-index:2}
+.chip:hover .tools,.chip:focus-within .tools{display:flex}
+.chip:hover .corner,.chip:focus-within .corner{display:none}
+.chip .tools button{width:22px;height:22px;border-radius:5px;display:grid;place-items:center;background:var(--dp-elevated);box-shadow:var(--ring);color:var(--dp-muted)}
+.chip .tools button:hover{color:var(--dp-fg);box-shadow:var(--ring-hi)}
+.chip .tools button.del:hover{color:var(--dp-danger)}
+.chip .tools svg{width:12px;height:12px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .chip:hover{box-shadow:var(--ring-hi);background:var(--dp-elevated)}
 .chip[aria-pressed=true]{box-shadow:0 0 0 1.5px var(--dp-primary);background:var(--dp-accent)}
 .chip .nm{font-size:12px;font-weight:600;color:var(--dp-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -191,6 +198,42 @@ main::-webkit-scrollbar-thumb{background:var(--dp-muted-bg);border-radius:10px;b
 .newform{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding:12px;border-radius:var(--r-md);background:var(--dp-accent)}
 .newform .in{flex:1;min-width:180px}
 .newform .hint{width:100%;font-size:12px;color:var(--dp-muted)}
+/* arrangement: the screens where Windows puts them */
+.arr{display:flex;align-items:center;justify-content:center;height:188px;border-radius:var(--r-md);background:var(--dp-void);box-shadow:var(--ring);padding:18px}
+.arr-in{position:relative;max-height:100%}
+.scr{position:absolute;border-radius:7px;background:var(--dp-card);box-shadow:var(--ring);overflow:hidden;cursor:pointer;text-align:left;transition:box-shadow 120ms}
+.scr:hover{box-shadow:var(--ring-hi)}
+.scr[aria-pressed=true]{box-shadow:0 0 0 2px var(--dp-primary),var(--glow)}
+.scr i{position:absolute;border-radius:3px;border:1px solid var(--zc);background:color-mix(in srgb,var(--zc) 16%,transparent);opacity:.55}
+.scr[aria-pressed=true] i{opacity:.9}
+.scr .cap2{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(transparent,rgb(5 6 8 / .92) 45%);min-width:0}
+.scr .cap2 b{font:700 11px/1 var(--mono);width:18px;height:18px;border-radius:5px;display:grid;place-items:center;background:var(--dp-muted-bg);color:var(--dp-fg);flex:none}
+.scr[aria-pressed=true] .cap2 b{background:var(--dp-primary);color:var(--dp-primary-fg)}
+.scr .cap2 span{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arr.mini2{height:auto;padding:0;background:none;box-shadow:none;display:block}
+.arr.mini2 .scr{cursor:default;border-radius:3px;background:var(--dp-muted-bg)}
+.arr.mini2 .scr.int{background:color-mix(in srgb,var(--dp-ice) 30%,var(--dp-muted-bg))}
+/* selected display */
+.disp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}
+.disp .lbl:first-child{margin-top:0}
+.clone-note{font-size:12.5px;color:var(--dp-muted);margin-top:10px}
+/* display setups */
+.setup{display:grid;grid-template-columns:92px minmax(0,1fr) 210px 36px;gap:16px;align-items:center;padding:14px 20px;border-top:1px solid var(--dp-border)}
+.setup:first-child{border-top:0}
+.setup .mini2{width:92px;height:52px;position:relative}
+.setup .nm{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.setup .meta{display:flex;gap:8px;align-items:center;margin-top:4px;font-size:12px;color:var(--dp-muted)}
+select.in{width:100%;color-scheme:dark;cursor:pointer;appearance:auto}
+.replace{margin-top:18px}
+.replace .lbl{margin-top:0}
+.replace-row{display:flex;gap:8px;align-items:center}
+.replace-row select{flex:1;min-width:0}
+.replace .hint2{font-size:12px;color:var(--dp-muted);margin-top:6px}
+.setup .pick{display:flex;flex-direction:column;gap:5px}
+.setup .pick span{font:500 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dp-muted)}
+.hint-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--dp-ice)}
+.setup-foot{padding:12px 20px;border-top:1px solid var(--dp-border);font-size:12.5px;color:var(--dp-muted)}
+.auto-note{font-size:12px;color:var(--dp-muted);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
 .saveas{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
 .saveas .in{flex:1;min-width:160px}
@@ -202,6 +245,7 @@ main::-webkit-scrollbar-thumb{background:var(--dp-muted-bg);border-radius:10px;b
 .plan .num{width:40px;height:40px;border-radius:var(--r-md);display:grid;place-items:center;font:700 18px/1 var(--mono);background:var(--dp-muted-bg);color:var(--dp-muted)}
 .plan.on .num{background:var(--dp-accent);color:var(--dp-primary)}
 .plan .what{display:flex;gap:12px;align-items:center;min-width:0}
+.plan .what .col{min-width:0}
 .plan .minis{display:flex;gap:6px;flex:none}
 .plan .mini{width:84px;height:48px}
 .plan .apps{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
@@ -214,6 +258,15 @@ main::-webkit-scrollbar-thumb{background:var(--dp-muted-bg);border-radius:10px;b
 
 /* ---------- toasts ---------- */
 .toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:9;pointer-events:none}
+/* ---------- confirm dialog ---------- */
+.scrim{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgb(5 6 8 / .72);padding:24px}
+.dlg{width:min(440px,100%);border-radius:var(--r-xl);background:var(--dp-elevated);box-shadow:var(--ring-hi),0 24px 64px rgb(0 0 0 / .55);padding:22px 22px 18px}
+.dlg h2{font:700 18px/1.25 var(--display)}
+.dlg p{color:var(--dp-muted);font-size:13.5px;margin-top:10px;line-height:1.55}
+.dlg p b{color:var(--dp-fg);font-weight:600}
+.dlg .row-b{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.btn.solid-danger{background:var(--dp-danger);color:#fff}
+.btn.solid-danger:hover{filter:brightness(1.08)}
 .toast{display:flex;align-items:center;gap:10px;min-width:220px;max-width:420px;padding:11px 14px;border-radius:var(--r-lg);background:var(--dp-elevated);box-shadow:var(--ring),0 12px 32px rgb(0 0 0 / .45);font-size:13px;pointer-events:auto}
 .toast .dot{flex:none;width:8px;height:8px}
 .toast.ok .dot{background:var(--dp-ok)}
@@ -416,6 +469,31 @@ document.addEventListener('keyup', e => {
 document.addEventListener('mousedown', e => { if (rec && !rec.contains(e.target)) stopRec(); }, true);
 window.addEventListener('blur', stopRec);
 
+// ---------- confirm dialog ----------
+// Asks before an action that cannot be undone. Esc / Cancel / a click
+// outside close it. Cancel has the focus first (Enter = Cancel), Tab
+// switches to the confirm button.
+let dlg = null;
+function closeDlg() { if (dlg) { dlg.remove(); dlg = null; } }
+function Confirm({ title, body, ok, onOk }) {
+  closeDlg();
+  const s = el('div', 'scrim'); s.setAttribute('role', 'dialog'); s.setAttribute('aria-modal', 'true');
+  const d = el('div', 'dlg');
+  const p = el('p'); p.append(...[].concat(body));
+  const cancel = Btn('Cancel', 'ghost', closeDlg);
+  const go = Btn(ok, 'solid-danger', () => { closeDlg(); onOk(); });
+  const btns = el('div', 'row-b'); btns.append(cancel, go);
+  d.append(el('h2', '', title), p, btns);
+  s.appendChild(d);
+  s.addEventListener('mousedown', e => { if (e.target === s) closeDlg(); });
+  s.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.stopPropagation(); closeDlg(); }
+    if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === go ? cancel : go).focus(); }
+  });
+  document.body.appendChild(s); dlg = s;
+  cancel.focus();
+}
+
 // ---------- toasts ----------
 function toast(text, kind) {
   const t = el('div', 'toast ' + (kind || 'ok'));
@@ -428,7 +506,7 @@ function toast(text, kind) {
 // ---------- pages ----------
 const PAGES = [
   { id: 'general', group: 'Zones', title: 'General', desc: 'How ZoneLock keeps your windows in their zones.' },
-  { id: 'displays', group: 'Zones', title: 'Displays', desc: 'Each display keeps its own layout. Pick a preset, or make a new one.' },
+  { id: 'displays', group: 'Zones', title: 'Displays', desc: 'Zones are the areas your windows snap into. Every screen has its own: click a screen, then pick a layout for it.' },
   { id: 'plans', group: 'Workspace', title: 'Plans', desc: 'Save the apps you have open as a plan, then jump between plans with a shortcut. Apps that are not running are launched and put back in place.' },
   { id: 'shortcuts', group: 'Input', title: 'Shortcuts', desc: 'Click a field, then press the keys. Works with any keyboard layout.' },
   { id: 'fullscreen', group: 'Apps', title: 'Fullscreen apps', desc: 'Apps stay in real fullscreen inside their zone. If one flickers when you click it (Chrome, Edge, Discord and other Chromium apps), turn on Stable for it.' },
@@ -585,19 +663,86 @@ function NameForm(cls, value, button, onGo, hint) {
   setTimeout(() => { nf.focus(); nf.select(); });
   return f;
 }
+const PEN = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>';
+const BIN = '<svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>';
 function Chip(m, pr) {
-  const ch = el('button', 'chip press'); ch.title = pr.builtin ? pr.name : pr.name + ' (yours)';
+  const ch = el('div', 'chip press'); ch.tabIndex = 0; ch.setAttribute('role', 'button');
+  ch.title = pr.builtin ? pr.name : pr.name + ' (yours)';
   ch.setAttribute('aria-pressed', pr.name === m.layout.name);
-  if (!pr.builtin) { const c = el('span', 'corner'); c.innerHTML = STAR; ch.appendChild(c); }
+  const use = () => { if (pr.name !== m.layout.name) send({ type: 'use_preset', monitor: m.id, name: pr.name }); };
+  if (!pr.builtin) {
+    const c = el('span', 'corner'); c.innerHTML = STAR; ch.appendChild(c);
+    const tools = el('span', 'tools');
+    const ed = el('button'); ed.innerHTML = PEN; ed.title = 'Edit ' + pr.name; ed.setAttribute('aria-label', ed.title);
+    ed.addEventListener('click', e => { e.stopPropagation(); send({ type: 'edit_preset', monitor: m.id, name: pr.name }); });
+    const del = el('button', 'del'); del.innerHTML = BIN; del.title = 'Delete ' + pr.name; del.setAttribute('aria-label', del.title);
+    del.addEventListener('click', e => { e.stopPropagation(); send({ type: 'delete_preset', name: pr.name }); });
+    tools.append(ed, del); ch.appendChild(tools);
+  }
   ch.append(Mini(pr.zones), el('span', 'nm' + (pr.builtin ? '' : ' user'), pr.name));
-  ch.addEventListener('click', () => { if (pr.name !== m.layout.name) send({ type: 'use_preset', monitor: m.id, name: pr.name }); });
+  ch.addEventListener('click', use);
+  ch.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === ch) { e.preventDefault(); use(); } });
   return ch;
 }
+// Screens drawn where Windows puts them. `screens` = [{x,y,w,h,...}];
+// `opts.zones(s)` gives the zones to draw, `opts.label(s)` the caption,
+// `opts.pick(s)` makes them clickable, `opts.sel` the selected one.
+function Arrangement(screens, opts) {
+  const box = el('div', 'arr' + (opts.small ? ' mini2' : ''));
+  if (!screens.length) return box;
+  const minX = Math.min(...screens.map(s => s.x)), minY = Math.min(...screens.map(s => s.y));
+  const W = Math.max(...screens.map(s => s.x + s.w)) - minX, H = Math.max(...screens.map(s => s.y + s.h)) - minY;
+  const inner = el('div', 'arr-in');
+  const ratio = W / H;
+  if (opts.small) {
+    const [bw, bh] = ratio > 92 / 52 ? [92, 92 / ratio] : [52 * ratio, 52];
+    inner.style.cssText = `position:absolute;inset:0;margin:auto;width:${bw}px;height:${bh}px`;
+  } else inner.style.cssText = `width:min(100%, ${Math.round(152 * ratio)}px);aspect-ratio:${ratio}`;
+  const pad = opts.small ? 1.5 : 4;
+  for (const s of screens) {
+    const d = el(opts.pick ? 'button' : 'div', 'scr' + (s.internal ? ' int' : ''));
+    d.style.cssText = `left:calc(${(s.x - minX) / W * 100}% + ${pad}px);top:calc(${(s.y - minY) / H * 100}% + ${pad}px);width:calc(${s.w / W * 100}% - ${pad * 2}px);height:calc(${s.h / H * 100}% - ${pad * 2}px)`;
+    (opts.zones ? opts.zones(s) : []).forEach((z, i) => {
+      const [l, t, r, b] = z.rect, q = el('i');
+      q.style.cssText = `--zc:${ZC[i % ZC.length]};left:calc(${l * 100}% + 3px);top:calc(${t * 100}% + 3px);width:calc(${(r - l) * 100}% - 6px);height:calc(${(b - t) * 100}% - 6px)`;
+      d.appendChild(q);
+    });
+    if (opts.label) {
+      const c = el('div', 'cap2'); c.append(el('b', '', String(s.number)), el('span', '', opts.label(s)));
+      d.appendChild(c);
+    }
+    if (opts.pick) {
+      d.setAttribute('aria-pressed', opts.sel === s.id);
+      d.title = `${s.label} · ${s.width}×${s.height}`;
+      d.addEventListener('click', () => opts.pick(s));
+    }
+    inner.appendChild(d);
+  }
+  box.appendChild(inner);
+  return box;
+}
+let selMon = store.get('zl-mon');
+function ago2(t) { return t ? ago(t) : ''; }
 function renderDisplays() {
   const p = panels.displays; p.textContent = '';
   const mine = S.presets.filter(x => !x.builtin), builtin = S.presets.filter(x => x.builtin);
-  for (const m of S.monitors) {
-    const c = Card(m.label, null, Btn('+ New preset', 'primary sm', () => { creating = m.id; saving = null; renderDisplays(); }));
+  if (!S.monitors.some(m => m.id === selMon)) selMon = (S.monitors.find(m => m.primary) || S.monitors[0] || {}).id;
+  const pick = s => { selMon = s.id; store.set('zl-mon', s.id); creating = null; saving = null; renderDisplays(); };
+
+  // 1. the screens, where Windows puts them
+  if (S.monitors.length > 1) {
+    const ac = Card('Your screens', 'Placed like in the Windows display settings. Click a screen to see and change its zones.');
+    body(ac).appendChild(Arrangement(S.monitors.map(m => ({ ...m, w: m.width, h: m.height })), { zones: s => s.layout.zones, label: s => s.label, pick, sel: selMon }));
+    p.appendChild(ac);
+  }
+
+  // 2. the selected screen: preview left, presets right
+  const lab = v => S.key_labels[v] || v;
+  const snapHow = (S.hotkeys.drag_snap ? `hold ${lab(S.hotkeys.drag_snap)} while you drag a window` : 'drag a window')
+    + ` and drop it on a zone, or use ${lab(S.hotkeys.next_zone)}.`;
+  for (const m of S.monitors.filter(x => x.id === selMon)) {
+    const c = Card(m.label, 'The zones of this screen. To snap a window into one, ' + snapHow,
+      Btn('+ Draw my own', 'primary sm', () => { creating = m.id; saving = null; renderDisplays(); }));
     $('h3', c).append(Badge('muted', `${m.width}×${m.height}`));
     if (m.primary) $('h3', c).append(Badge('ice', 'Primary'));
     const custom = !S.presets.some(x => x.name === m.layout.name);
@@ -608,8 +753,12 @@ function renderDisplays() {
       b.appendChild(NameForm('newform', '', 'Draw zones', name => send({ type: 'new_preset', monitor: m.id, name }),
         'The zone editor opens over the screen. Draw the zones, press Enter to save the preset, Esc to cancel.'));
     }
+    const grid = el('div', 'disp');
+    const left = el('div'), right = el('div');
+    grid.append(left, right);
+    b.appendChild(grid);
 
-    // preview on top
+    left.appendChild(el('div', 'lbl', 'Zones now'));
     const pv = el('div', 'preview');
     const st = el('div', 'stage'); st.style.aspectRatio = `${m.width} / ${m.height}`;
     m.layout.zones.forEach((z, i) => {
@@ -622,45 +771,111 @@ function renderDisplays() {
     const n = m.layout.zones.length;
     const dims = el('div', 'dims'); dims.append(el('span', '', m.layout.name), el('span', '', `${n} zone${n === 1 ? '' : 's'}`));
     pv.append(st, dims);
-    b.appendChild(pv);
+    left.appendChild(pv);
+    if (m.clones.length) left.appendChild(el('div', 'clone-note', 'Same picture on ' + m.clones.join(', ') + ' (duplicate mode).'));
+    const olds = (S.old_screens || []).filter(o => m.hw_id && !o.with.includes(m.hw_id));
+    if (olds.length) left.appendChild(ReplaceForm(m, olds));
     if (custom) {
       if (saving === m.id) {
-        b.appendChild(NameForm('saveas', '', 'Save preset', name => send({ type: 'save_preset', monitor: m.id, name })));
+        left.appendChild(NameForm('saveas', '', 'Save preset', name => send({ type: 'save_preset', monitor: m.id, name })));
       } else {
         const note = el('div', 'note');
         note.append(el('span', '', 'Drawn in the editor, not saved as a preset yet.'),
           Btn('Save as preset', 'outline sm', () => { saving = m.id; creating = null; renderDisplays(); }));
-        b.appendChild(note);
+        left.appendChild(note);
       }
     }
 
-    // presets below: yours first (star in the corner), then built-in
+    // layouts on the right: yours first (edit / delete on hover), then built-in
+    right.appendChild(el('div', 'lbl', 'Pick a layout'));
     if (mine.length) {
-      const lb = el('div', 'lbl'); lb.append(el('span', '', 'Your presets'));
-      b.appendChild(lb);
-      const g = el('div', 'chips'); mine.forEach(pr => g.appendChild(Chip(m, pr))); b.appendChild(g);
+      right.appendChild(el('div', 'note', 'Yours (point at one to edit or delete it)'));
+      const g = el('div', 'chips'); g.style.marginTop = '8px'; mine.forEach(pr => g.appendChild(Chip(m, pr))); right.appendChild(g);
+      right.appendChild(el('div', 'note', 'Built-in'));
     }
-    b.appendChild(el('div', 'lbl', mine.length ? 'Built-in' : 'Presets'));
-    const g2 = el('div', 'chips'); builtin.forEach(pr => g2.appendChild(Chip(m, pr))); b.appendChild(g2);
+    right.lastChild.style.marginBottom = '8px';
+    const g2 = el('div', 'chips'); builtin.forEach(pr => g2.appendChild(Chip(m, pr))); right.appendChild(g2);
     p.appendChild(c);
   }
 
-  const yc = Card('Your presets', 'Usable on any display and by the Next preset shortcut.');
-  $('h3', yc).appendChild(Badge(mine.length ? 'ok' : 'muted', String(mine.length)));
-  const t = Table('c-preset', ['Layout', 'Name', 'Zones'], 'None yet. Use + New preset on a display.');
-  const home = pr => (S.monitors.find(m => m.layout.name === pr.name) || S.monitors.find(m => m.primary) || S.monitors[0]);
-  for (const pr of mine) {
-    const tr = el('div', 'tr c-preset');
-    tr.append(Mini(pr.zones), el('span', '', pr.name), Badge('muted', `${pr.zones.length} zones`),
-      Btn('Edit', 'outline sm', () => { const m = home(pr); if (m) send({ type: 'edit_preset', monitor: m.id, name: pr.name }); }),
-      Btn('Delete', 'danger sm', () => send({ type: 'delete_preset', name: pr.name })));
-    t.appendChild(tr);
-  }
-  emptyCheck(t);
-  body(yc, true).appendChild(t);
-  p.appendChild(yc);
   setCount('displays', Badge('muted', String(S.monitors.length)));
 }
+
+// "This screen replaces an old one": plans, setups and zones move over.
+function ReplaceForm(m, olds) {
+  const f = el('div', 'replace');
+  f.appendChild(el('div', 'lbl', 'Is this a new screen?'));
+  f.appendChild(el('div', 'hint2', 'If it replaces a screen you had before, pick that one: its zones, plans and screen setups move to this screen.'));
+  const row = el('div', 'replace-row');
+  const sel = el('select', 'in'); sel.setAttribute('aria-label', 'Old screen this one replaces');
+  const o0 = el('option', '', 'Old screen…'); o0.value = ''; sel.appendChild(o0);
+  for (const o of olds) {
+    const op = el('option', '', `${o.label} · last seen ${ago(o.last_seen)}`); op.value = o.id; sel.appendChild(op);
+  }
+  const go = Btn('Move here', 'outline', () => {
+    if (!sel.value) { toast('Pick the old screen first.', 'bad'); return; }
+    send({ type: 'replace_screen', old: sel.value, monitor: m.id });
+  });
+  row.append(sel, go);
+  row.style.marginTop = '8px';
+  f.append(row);
+  return f;
+}
+
+function SetupsCard() {
+  const c = Card('Plans that follow your screens', 'Pick a plan for each set of screens. When you plug in or unplug a screen, the open windows of that plan go back to their place. Nothing is opened, minimized or brought to the front.');
+  const b = body(c, true);
+  const plans = S.plans;
+  for (const s of S.setups || []) {
+    const row = el('div', 'setup');
+    const mini = el('div', 'mini2');
+    mini.appendChild(Arrangement(s.displays, { small: true }));
+    const info = el('div');
+    info.appendChild(el('div', 'nm', s.label)).title = s.label;
+    const meta = el('div', 'meta');
+    if (s.current) meta.appendChild(Badge('ok', 'Connected', true));
+    else meta.appendChild(el('span', '', 'Last connected ' + ago2(s.last_seen)));
+    if (s.inherited) {
+      const ib = Badge('ice', 'Replaced screen');
+      ib.title = 'Same models as a setup linked to this plan: a screen was replaced by the same model, so it keeps that plan.';
+      meta.appendChild(ib);
+    }
+    if (s.hint_plan) {
+      const hint = el('div', 'hint-row');
+      hint.append(el('span', '', `New screen in place of ${s.hint_from}?`),
+        Btn(`Keep plan ${s.hint_plan}`, 'outline sm', () => send({ type: 'setup_plan', key: s.key, slot: s.hint_plan })));
+      info.appendChild(hint);
+    }
+    meta.appendChild(el('span', '', s.displays.length + (s.displays.length === 1 ? ' screen' : ' screens')));
+    info.appendChild(meta);
+    const sel = el('select', 'in'); sel.setAttribute('aria-label', 'Plan for ' + s.label);
+    const opt = (v, t) => { const o = el('option', '', t); o.value = v; sel.appendChild(o); };
+    opt('', 'No plan');
+    for (const pl of plans) opt(String(pl.slot), `Plan ${pl.slot} · ${planApps(pl)}`);
+    if (s.plan && !plans.some(pl => pl.slot === s.plan)) opt(String(s.plan), `Plan ${s.plan} (empty)`);
+    sel.value = s.plan ? String(s.plan) : '';
+    sel.disabled = !plans.length && !s.plan;
+    sel.addEventListener('change', () => send({ type: 'setup_plan', key: s.key, slot: sel.value ? Number(sel.value) : null }));
+    const pick = el('label', 'pick'); pick.append(el('span', '', 'When connected, arrange'), sel);
+    const x = tpl('t-x'); x.title = x.ariaLabel = 'Forget this setup';
+    if (s.current) x.style.visibility = 'hidden';
+    else x.addEventListener('click', () => send({ type: 'forget_setup', key: s.key }));
+    row.append(mini, info, pick, x);
+    b.appendChild(row);
+  }
+  const foot = el('div', 'setup-foot');
+  foot.textContent = !plans.length
+    ? 'No plan saved yet: save one in the list above first.'
+    : (S.setups || []).length < 2
+      ? 'Only the screens connected now are listed. Plug in or unplug a screen once and that set shows up here too.'
+      : 'Screens are recognised by model and serial number, whatever the port or dock. Virtual screens (Parsec, Remote Desktop) do not count.';
+  b.appendChild(foot);
+  return c;
+}
+const planApps = pl => {
+  const seen = []; for (const w of pl.windows) { const n = appName(w.exe); if (!seen.some(x => x.toLowerCase() === n.toLowerCase())) seen.push(n); }
+  return seen.slice(0, 3).join(', ') + (seen.length > 3 ? ` +${seen.length - 3}` : '');
+};
 
 // ---------- plans ----------
 // one colour per program inside a plan, in the plan's order (distinct
@@ -708,6 +923,7 @@ function renderPlans() {
     if (plan) {
       const appColor = planColors(plan);
       what.appendChild(PlanMinis(plan, appColor));
+      const col = el('div', 'col');
       const apps = el('div', 'apps');
       const seen = new Set();
       for (const w of plan.windows) {
@@ -716,19 +932,36 @@ function renderPlans() {
         a.append(el('i'), el('span', '', appName(w.exe)));
         apps.appendChild(a);
       }
-      what.appendChild(apps);
+      col.appendChild(apps);
+      const auto = (S.setups || []).filter(s => s.plan === n);
+      if (auto.length) {
+        const an = el('div', 'auto-note', 'Arranged when connected: ' + auto.map(s => s.label).join(' · '));
+        an.title = an.textContent; col.appendChild(an);
+      }
+      what.appendChild(col);
     } else {
       what.appendChild(el('span', 'empty-note', 'Empty. Arrange your apps, then Save current.'));
     }
     row.appendChild(what);
     const acts = el('div', 'acts');
     if (plan) acts.append(Btn('Go', 'primary sm', () => send({ type: 'plan_go', slot: n })));
-    acts.append(Btn(plan ? 'Replace' : 'Save current', 'outline sm', () => send({ type: 'plan_save', slot: n })));
-    if (plan) acts.append(Btn('Clear', 'ghost sm', () => send({ type: 'plan_clear', slot: n })));
+    const save = () => send({ type: 'plan_save', slot: n });
+    acts.append(Btn(plan ? 'Replace' : 'Save current', 'outline sm', plan ? () => Confirm({
+      title: `Replace plan ${n}?`,
+      body: [`Plan ${n} holds `, el('b', '', planApps(plan)), '. It will be replaced by the apps open right now, where they are now. The old plan cannot be brought back.'],
+      ok: `Replace plan ${n}`,
+      onOk: save,
+    }) : save));
+    if (plan) acts.append(Btn('Clear', 'ghost sm', () => Confirm({
+      title: `Clear plan ${n}?`,
+      body: [`Plan ${n} (`, el('b', '', planApps(plan)), ') will be deleted' + ((S.setups || []).some(s => s.plan === n) ? ', and no display setup will arrange it any more.' : '.') + ' Your apps stay open.'],
+      ok: `Clear plan ${n}`,
+      onOk: () => send({ type: 'plan_clear', slot: n }),
+    })));
     row.appendChild(acts);
     lb.appendChild(row);
   }
-  p.append(kc, list);
+  p.append(kc, list, SetupsCard());
   setCount('plans', S.plans.length ? Badge('ok', String(S.plans.length)) : Badge('muted', '0'));
 }
 
@@ -846,10 +1079,10 @@ document.addEventListener('click', e => {
   const s = e.target.closest('.sw');
   if (s) { s.setAttribute('aria-checked', s.getAttribute('aria-checked') !== 'true'); apply(); }
 });
-$('#main').addEventListener('change', e => { if (e.target.matches('.in') && !e.target.closest('.saveas')) apply(); });
+$('#main').addEventListener('change', e => { if (e.target.matches('input.in') && !e.target.closest('.saveas')) apply(); });
 $('#main').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.in') && !e.target.closest('.saveas')) e.target.blur(); });
 $('#credit').addEventListener('click', () => send({ type: 'open_credit' }));
-document.addEventListener('keydown', e => { if (!rec && e.key === 'Escape' && !e.target.closest('.saveas')) send({ type: 'close' }); });
+document.addEventListener('keydown', e => { if (!rec && !dlg && e.key === 'Escape' && !e.target.closest('.saveas')) send({ type: 'close' }); });
 document.addEventListener('contextmenu', e => { if (!e.target.matches('input')) e.preventDefault(); });
 show(store.get('zl-page') || 'general');
 

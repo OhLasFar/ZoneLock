@@ -37,6 +37,10 @@ pub struct PlanWindow {
     pub monitor: String,
     #[serde(default)]
     pub monitor_index: usize,
+    /// Hardware id of that display (`Monitor::hw_id`): preferred over the
+    /// device name, which changes with ports and docks.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub monitor_hw: String,
     /// Visible frame as a fraction of that display's work area.
     pub rect: FracRect,
 }
@@ -45,6 +49,9 @@ pub struct PlanWindow {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
     pub windows: Vec<PlanWindow>,
+    /// Display setup it was saved on (`setups::key_of`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub setup: String,
 }
 
 /// An app window that exists right now.
@@ -105,24 +112,80 @@ pub fn assign(plan: &Plan, live: &[LiveWin]) -> Assignment {
     out
 }
 
-/// Absolute visible rect of a plan window on the current displays:
-/// same display by name, else by index, else the primary one.
-pub fn target_rect(pw: &PlanWindow, monitors: &[crate::monitor::Monitor]) -> Option<Rect> {
-    // the remembered display if it is still connected, otherwise the
-    // primary one (never "whatever now sits at the same index": with a
-    // display unplugged that is a different screen). The index is only
-    // used by entries that carry no display name.
+/// The display a plan window goes to now: the same screen (hardware id,
+/// else device name), otherwise the primary one (never "whatever now
+/// sits at the same index": with a display unplugged that is a different
+/// screen). The index is only used by entries that carry no name.
+///
+/// A replaced screen takes the old one's place. With `others` (the
+/// screens the plan's other windows were saved on): when the exact screen
+/// is missing, (1) the one connected screen of the same model, else (2)
+/// the screen now plugged in at the same place (device name), as long as
+/// it is not the exact screen of another window of the plan. A lone spot
+/// (`others` = None, "reopen where you left it") only takes (1): with no
+/// plan around it, a different screen at that name may be another desk.
+pub fn resolve_monitor<'a>(
+    pw: &PlanWindow,
+    monitors: &'a [crate::monitor::Monitor],
+    others: Option<&[&str]>,
+) -> Option<&'a crate::monitor::Monitor> {
+    let taken = |m: &crate::monitor::Monitor| others.is_some_and(|o| o.contains(&m.hw_id.as_str()));
+    use crate::monitor::model_of;
     let named = !pw.monitor.is_empty();
-    let mon = monitors
-        .iter()
-        .find(|m| named && m.name == pw.monitor)
+    let real = || monitors.iter().filter(|m| !m.virt);
+    let has_hw = !pw.monitor_hw.is_empty();
+    has_hw
+        .then(|| real().find(|m| m.hw_id == pw.monitor_hw))
+        .flatten()
+        .or_else(|| {
+            if !has_hw {
+                return None;
+            }
+            let model = model_of(&pw.monitor_hw);
+            let same: Vec<_> = real()
+                .filter(|m| !m.hw_id.is_empty() && model_of(&m.hw_id) == model)
+                .filter(|m| !taken(m))
+                .collect();
+            (same.len() == 1).then(|| same[0])
+        })
+        .or_else(|| {
+            // by name: entries saved without a hardware id, or (in a plan)
+            // a new screen plugged in where the old one was
+            real().find(|m| {
+                named
+                    && m.name == pw.monitor
+                    && (pw.monitor_hw.is_empty() || m.hw_id.is_empty() || (others.is_some() && !taken(m)))
+            })
+        })
         .or_else(|| {
             (!named)
-                .then(|| monitors.iter().find(|m| m.index == pw.monitor_index))
+                .then(|| real().find(|m| m.index == pw.monitor_index))
                 .flatten()
         })
         .or_else(|| monitors.iter().find(|m| m.primary))
-        .or_else(|| monitors.first())?;
+        .or_else(|| monitors.first())
+}
+
+/// Absolute visible rect of a lone window spot (no plan around it).
+pub fn target_rect(pw: &PlanWindow, monitors: &[crate::monitor::Monitor]) -> Option<Rect> {
+    let mon = resolve_monitor(pw, monitors, None)?;
+    Some(pw.rect.to_pixels(&mon.work, 0))
+}
+
+/// The screens the other windows of `plan` were saved on.
+pub fn plan_screens(plan: &Plan) -> Vec<&str> {
+    plan.windows
+        .iter()
+        .map(|w| w.monitor_hw.as_str())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Absolute visible rect of window `i` of `plan` on the current displays.
+pub fn plan_target(plan: &Plan, i: usize, monitors: &[crate::monitor::Monitor]) -> Option<Rect> {
+    let pw = &plan.windows[i];
+    let others: Vec<&str> = plan_screens(plan).into_iter().filter(|s| *s != pw.monitor_hw).collect();
+    let mon = resolve_monitor(pw, monitors, Some(&others))?;
     Some(pw.rect.to_pixels(&mon.work, 0))
 }
 
@@ -163,7 +226,7 @@ pub fn app_names(plan: &Plan) -> String {
     seen.join(", ")
 }
 
-pub use win::{claim_new_window, go, save_current};
+pub use win::{arrange, claim_new_window, go, save_current};
 pub(crate) use win::{app_windows, is_app_window, visible_rect};
 
 mod win {
@@ -181,7 +244,7 @@ mod win {
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::*;
 
-    use super::{assign, target_rect, LiveWin, Plan, PlanWindow};
+    use super::{assign, plan_target, LiveWin, Plan, PlanWindow};
     use crate::config::Config;
     use crate::rect::{FracRect, Rect};
     use crate::watcher::Shared;
@@ -292,7 +355,10 @@ mod win {
     pub fn save_current(shared: &Shared, slot: u8) -> Result<Plan, String> {
         let cfg = shared.config.read().unwrap().clone();
         let mons = shared.monitors.read().unwrap().clone();
-        let mut plan = Plan::default();
+        let mut plan = Plan {
+            setup: crate::setups::key_of(&mons),
+            ..Default::default()
+        };
         for (h, info) in app_windows(&cfg) {
             if info.iconic {
                 continue;
@@ -308,6 +374,7 @@ mod win {
                 title: window_text(h),
                 monitor: mon.name.clone(),
                 monitor_index: mon.index,
+                monitor_hw: mon.hw_id.clone(),
                 rect: FracRect::from_pixels(&vis, &mon.work),
             });
         }
@@ -379,7 +446,7 @@ mod win {
                 if iconic(h) {
                     let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
                 }
-                if let Some(t) = target_rect(&plan.windows[i], &mons) {
+                if let Some(t) = plan_target(&plan, i, &mons) {
                     place::apply_zone(hwnd, &t);
                 }
                 let _ = SetWindowPos(
@@ -402,7 +469,7 @@ mod win {
         let mut launched = Vec::new();
         for &i in &a.missing {
             let pw = &plan.windows[i];
-            let Some(target) = target_rect(pw, &mons) else { continue };
+            let Some(target) = plan_target(&plan, i, &mons) else { continue };
             if launch(pw) {
                 PENDING.lock().unwrap().push(Pending {
                     exe: pw.exe.to_ascii_lowercase(),
@@ -421,6 +488,57 @@ mod win {
             a.others.len()
         ));
         Ok(())
+    }
+
+    /// The gentle version of `go`, run when the connected screens change
+    /// to a setup linked to plan `slot`: the plan's windows that are open
+    /// and not minimized go to their place (and z-order), without taking
+    /// the focus. Nothing is launched, minimized or restored: unplugging a
+    /// cable must not open apps or hide what the user is doing.
+    /// Returns how many windows were placed.
+    pub fn arrange(shared: &Shared, slot: u8) -> Result<usize, String> {
+        let cfg = shared.config.read().unwrap().clone();
+        let Some(plan) = cfg.plans.get(&slot.to_string()).cloned() else {
+            return Err(format!("Plan {slot} is empty."));
+        };
+        let mons = shared.monitors.read().unwrap().clone();
+        let wins: Vec<(HWND, WindowInfo)> = app_windows(&cfg)
+            .into_iter()
+            .filter(|(_, i)| !i.iconic)
+            .collect();
+        let live: Vec<LiveWin> = wins
+            .iter()
+            .map(|(h, i)| LiveWin {
+                hwnd: h.0 as isize,
+                exe: i.exe.clone(),
+                class: i.class.clone(),
+                title: window_text(*h),
+            })
+            .collect();
+        let a = assign(&plan, &live);
+        // bottom of the stack first, so the plan's top window ends on top
+        for &(i, h) in a.matched.iter().rev() {
+            let hwnd = HWND(h as *mut _);
+            if let Some(t) = plan_target(&plan, i, &mons) {
+                place::apply_zone(hwnd, &t);
+            }
+            unsafe {
+                let _ = SetWindowPos(
+                    hwnd,
+                    Some(HWND_TOP),
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                );
+            }
+        }
+        log::line(format!(
+            "plan {slot} arranged for the display setup: placed {}",
+            a.matched.len()
+        ));
+        Ok(a.matched.len())
     }
 
     /// Called by the watcher when a window shows: if it belongs to a
@@ -469,6 +587,7 @@ mod tests {
             title: title.into(),
             monitor: "D1".into(),
             monitor_index: 0,
+            monitor_hw: String::new(),
             rect: FracRect::new(0.0, 0.0, 0.5, 1.0),
         }
     }
@@ -486,6 +605,7 @@ mod tests {
     fn assigns_by_program_and_minimizes_the_rest() {
         let plan = Plan {
             windows: vec![pw("Discord.exe", "Chrome_WidgetWin_1", "Discord"), pw("spotify.exe", "", "")],
+            ..Default::default()
         };
         let live = vec![
             lw(1, "chrome.exe", "Chrome_WidgetWin_1", "YouTube"),
@@ -502,6 +622,7 @@ mod tests {
     fn two_windows_of_one_program_prefer_same_title() {
         let plan = Plan {
             windows: vec![pw("chrome.exe", "C", "Mail"), pw("chrome.exe", "C", "Docs")],
+            ..Default::default()
         };
         let live = vec![lw(10, "chrome.exe", "C", "Docs"), lw(11, "chrome.exe", "C", "Mail")];
         let a = assign(&plan, &live);
@@ -528,7 +649,7 @@ mod tests {
 
         let mut cfg = crate::config::Config::default();
         assert_eq!(free_slots(&cfg), (1..=9).collect::<Vec<u8>>());
-        cfg.plans.insert("3".into(), Plan { windows: vec![pw("Discord.exe", "", ""), pw("chrome.exe", "", ""), pw("discord.exe", "", "")] });
+        cfg.plans.insert("3".into(), Plan { windows: vec![pw("Discord.exe", "", ""), pw("chrome.exe", "", ""), pw("discord.exe", "", "")], ..Default::default() });
         assert_eq!(free_slots(&cfg), vec![1, 2, 4, 5, 6, 7, 8, 9]);
         assert_eq!(app_names(&cfg.plans["3"]), "Discord, chrome");
     }
@@ -545,6 +666,7 @@ mod tests {
             dpi_y: 96,
             primary,
             handle: 0,
+            ..Default::default()
         };
         // primary is the RIGHT display here, so "index 0" != primary
         let mons = vec![m("A", 0, 0, false), m("B", 1, 1920, true), m("C", 2, 3840, false)];
@@ -561,5 +683,58 @@ mod tests {
         // nameless entry: index still works
         w.monitor = String::new();
         assert_eq!(target_rect(&w, &mons), Some(Rect::new(0, 0, 960, 1040)));
+
+        // hardware id wins over the device name: the screen saved as C is
+        // now plugged in as "A", and "C" is another screen
+        let hw = |mut m: Monitor, id: &str| {
+            m.hw_id = id.into();
+            m
+        };
+        let mons = vec![
+            hw(m("A", 0, 0, false), "HP"),
+            hw(m("B", 1, 1920, true), "LAPTOP"),
+            hw(m("C", 2, 3840, false), "DELL"),
+        ];
+        let mut w = pw("x.exe", "", "");
+        w.monitor = "C".into();
+        w.monitor_hw = "HP".into();
+        assert_eq!(target_rect(&w, &mons), Some(Rect::new(0, 0, 960, 1040)));
+        // that screen gone: not "C" (a different screen now), the primary
+        let two = vec![hw(m("B", 0, 1920, true), "LAPTOP"), hw(m("C", 1, 3840, false), "DELL")];
+        assert_eq!(target_rect(&w, &two), Some(Rect::new(1920, 0, 2880, 1040)));
+        // the HP broke and was replaced by another HP of the same model:
+        // the new one takes its windows; with two of that model connected,
+        // the one that is not another window's exact screen
+        w.monitor_hw = "220E-3688~old".into();
+        let mons = vec![hw(m("A", 0, 0, false), "220E-3688~new"), hw(m("B", 1, 1920, true), "LAPTOP")];
+        assert_eq!(target_rect(&w, &mons), Some(Rect::new(0, 0, 960, 1040)));
+        let mons2 = vec![
+            hw(m("A", 0, 0, false), "220E-3688~new"),
+            hw(m("B", 1, 1920, true), "LAPTOP"),
+            hw(m("C", 2, 3840, false), "220E-3688~kept"),
+        ];
+        assert_eq!(resolve_monitor(&w, &mons2, None).map(|m| m.name.as_str()), Some("B"), "ambiguous: primary");
+        assert_eq!(resolve_monitor(&w, &mons2, Some(&["220E-3688~kept"])).map(|m| m.name.as_str()), Some("A"));
+
+        // the gaming screen (saved on "C") replaced by another model on the
+        // same port: in a plan it takes the windows, unless that screen is
+        // the exact screen of another window of the plan
+        let mut g = pw("game.exe", "", "");
+        g.monitor = "C".into();
+        g.monitor_hw = "OLD-1111~aa".into();
+        let mons3 = vec![hw(m("B", 0, 0, true), "LAPTOP"), hw(m("C", 1, 1920, false), "NEW-2222~bb")];
+        assert_eq!(resolve_monitor(&g, &mons3, Some(&["LAPTOP"])).map(|m| m.name.as_str()), Some("C"));
+        assert_eq!(resolve_monitor(&g, &mons3, Some(&["NEW-2222~bb"])).map(|m| m.name.as_str()), Some("B"));
+        // a lone spot does not follow a different model: primary
+        assert_eq!(resolve_monitor(&g, &mons3, None).map(|m| m.name.as_str()), Some("B"));
+        // a virtual display is never a target, even by name
+        let mut v = m("C", 1, 3840, false);
+        v.virt = true;
+        let mut w2 = pw("x.exe", "", "");
+        w2.monitor = "C".into();
+        assert_eq!(
+            target_rect(&w2, &[m("B", 0, 1920, true), v]),
+            Some(Rect::new(1920, 0, 2880, 1040))
+        );
     }
 }

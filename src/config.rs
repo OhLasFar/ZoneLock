@@ -72,6 +72,10 @@ pub struct Config {
     /// Plans "1".."9": saved window arrangements (see plans.rs).
     #[serde(default)]
     pub plans: std::collections::BTreeMap<String, crate::plans::Plan>,
+    /// Display setup key (setups.rs) -> plan slot arranged automatically
+    /// when the connected screens change to that setup.
+    #[serde(default)]
+    pub setup_plans: std::collections::BTreeMap<String, u8>,
     /// Presets saved by the user (on top of the built-in ones).
     #[serde(default)]
     pub user_presets: Vec<crate::zones::Layout>,
@@ -231,6 +235,7 @@ impl Default for Config {
             layouts: LayoutSet::default(),
             user_presets: vec![],
             plans: Default::default(),
+            setup_plans: Default::default(),
             log_enabled: false,
         }
     }

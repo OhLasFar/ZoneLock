@@ -424,6 +424,25 @@ fn state_json(shared: &Shared) -> serde_json::Value {
     let mut st = uimodel::build_state(&cfg, crate::autostart::is_enabled(), &mons);
     st.hotkeys_rejected = crate::hotkeys::rejected();
     st.update = crate::update::view();
+    let known = crate::setups::known();
+    st.old_screens = crate::setups::old_screens(&known, &mons)
+        .into_iter()
+        .map(|(d, t)| uimodel::OldScreenUi {
+            with: mons
+                .iter()
+                .filter(|m| crate::setups::seen_together(&known, &d.id, &m.hw_id))
+                .map(|m| m.hw_id.clone())
+                .collect(),
+            id: d.id,
+            label: d.label,
+            last_seen: t,
+        })
+        .collect();
+    st.setups = uimodel::setups_ui(
+        &cfg,
+        &crate::setups::known(),
+        &crate::setups::snapshot(&mons, crate::setups::now_secs()),
+    );
     let bindings = [
         &cfg.hotkeys.toggle,
         &cfg.hotkeys.editor,
@@ -519,6 +538,38 @@ fn on_message(json: &str) {
             .map_err(|e| uimodel::UiError { field: "plans".into(), message: e })
             .and_then(|plan| uimodel::set_plan(&cur, slot, plan)),
         PageMsg::PlanClear { slot } => Ok(uimodel::clear_plan(&cur, slot)),
+        PageMsg::SetupPlan { key, slot } => uimodel::set_setup_plan(&cur, &key, slot),
+        PageMsg::ReplaceScreen { old, monitor } => {
+            let old_d = crate::setups::old_screens(&crate::setups::known(), &mons)
+                .into_iter()
+                .find(|(d, _)| d.id == old);
+            let known = crate::setups::known();
+            match (old_d, mons.iter().find(|m| m.name == monitor)) {
+                (Some((d, _)), Some(m)) if crate::setups::seen_together(&known, &d.id, &m.hw_id) => {
+                    Err(uimodel::UiError {
+                        field: "screens".into(),
+                        message: format!(
+                            "{} and {} were connected at the same time: one cannot replace the other.",
+                            d.label,
+                            crate::monitor::display_label(m)
+                        ),
+                    })
+                }
+                (Some((d, _)), Some(m)) => uimodel::replace_screen(&cur, &d.id, &d.gdi, m).inspect(|_| {
+                    crate::setups::replace_screen(&d.id, m);
+                    crate::memory::replace_screen(&d.id, &m.hw_id, &m.name, m.index);
+                    crate::log::line(format!("screen {} replaced by {} ({})", d.id, m.hw_id, m.name));
+                }),
+                _ => Err(uimodel::UiError {
+                    field: "screens".into(),
+                    message: "That screen is no longer listed. Reopen the settings and try again.".into(),
+                }),
+            }
+        }
+        PageMsg::ForgetSetup { key } => {
+            crate::setups::forget(&key);
+            Ok(uimodel::set_setup_plan(&cur, &key, None).unwrap_or_else(|_| cur.clone()))
+        }
         PageMsg::PlanGo { slot } => {
             if let Err(e) = crate::plans::go(&shared, slot) {
                 post(serde_json::json!({ "type": "error", "error": { "field": "plans", "message": e } }));

@@ -199,6 +199,23 @@ fn handle_cmd(shared: &Arc<Shared>, cmd: UiCmd) {
         }
         UiCmd::PlanSave(n) => save_plan_from_keys(shared, n),
         UiCmd::UpdateChanged => zonelock::webui::refresh(),
+        UiCmd::SetupChanged(plan) => {
+            if let Some(n) = plan {
+                match zonelock::plans::arrange(shared, n) {
+                    Ok(placed) if placed > 0 => {
+                        let mons = shared.monitors.read().unwrap().clone();
+                        let setup = zonelock::setups::label(&zonelock::setups::snapshot(&mons, 0));
+                        zonelock::planprompt::show_success(
+                            &format!("Plan {n} arranged"),
+                            &format!("{setup}: {placed} window{} moved.", if placed == 1 { "" } else { "s" }),
+                        );
+                    }
+                    Ok(_) => {}
+                    Err(e) => log::line(format!("plan {n}: {e}")),
+                }
+            }
+            zonelock::webui::refresh();
+        }
         UiCmd::SuspendHotkeys => {
             let hwnd = HWND(TRAY_HWND.load(Ordering::Relaxed) as *mut _);
             let mut ids = HK_IDS.lock().unwrap();

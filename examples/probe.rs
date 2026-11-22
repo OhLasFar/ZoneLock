@@ -21,11 +21,12 @@ fn main() {
     }
 
     let arg = std::env::args().nth(1);
+    if arg.as_deref() == Some("--targets") { for t in zonelock::monitor::hw::targets() { println!("{t:?}"); } return; }
 
     let mut cfg = Config::default();
     let mons = zonelock::monitor::enumerate();
     for (i, m) in mons.iter().enumerate() {
-        println!("mon{i}: {} rect={:?} work={:?} dpi={}", m.name, m.rect, m.work, m.dpi_x);
+        println!("mon{i}: {} rect={:?} work={:?} dpi={} hw={} model={:?} internal={} virt={} clones={:?}", m.name, m.rect, m.work, m.dpi_x, m.hw_id, m.model, m.internal, m.virt, m.clones);
         cfg.layouts
             .set_for_monitor(&m.name, zonelock::zones::Layout::halves());
     }
