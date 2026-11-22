@@ -78,6 +78,7 @@ fn main() {
     };
 
     log::set_enabled(cfg.log_enabled);
+    zonelock::place::set_force_small(cfg.force_small_zones);
     log::line(format!("zonelock {} starting", env!("CARGO_PKG_VERSION")));
 
     let shared = Shared::new(cfg);

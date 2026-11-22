@@ -159,6 +159,10 @@ unsafe extern "system" fn hook_proc(
             }
             if event == EVENT_OBJECT_SHOW {
                 let known = with_ctx(|c| c.tracker.get(hwnd.0 as isize).is_some()).unwrap_or(true);
+                if !known {
+                    // learn this app's minimum size (minsizes.json)
+                    crate::minsize::probe(hwnd);
+                }
                 if !crate::plans::claim_new_window(hwnd) && !known {
                     restore_remembered(hwnd);
                 }
@@ -832,6 +836,9 @@ pub fn run(shared: Arc<Shared>) {
         for_each_top_level(|hwnd| {
             evaluate_hwnd(hwnd);
         });
+        // Learn the minimum size of every app already running, tray apps
+        // with a hidden main window included (minsizes.json).
+        crate::minsize::probe_all();
 
         let tid = windows::Win32::System::Threading::GetCurrentThreadId();
         let mut msg = MSG::default();

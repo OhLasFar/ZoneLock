@@ -1,6 +1,6 @@
 [package]
 name = "zonelock"
-version = "1.0.7"
+version = "1.0.8"
 edition = "2021"
 description = "Window zones for Windows: snap apps into zones, and F11 fullscreen stays in its zone"
 license = "GPL-3.0-or-later"
@@ -21,6 +21,7 @@ windows = { version = "0.62", features = [
     "Win32_UI_Accessibility",
     "Win32_UI_Controls",
     "Win32_Graphics_Gdi",
+    "Win32_Graphics_GdiPlus",
     "Win32_Devices_Display",
     "Win32_Graphics_Dwm",
     "Win32_System_Threading",

@@ -548,7 +548,9 @@ function buildGeneral() {
     Tile('shift_snap', 'Drag to snap', 'Hold the snap key while moving a window to show the zones, drop on one to snap.'),
     Tile('remember_positions', 'Reopen apps where you left them', 'A closed app comes back where it was, unless another of its windows is already open.'),
     Tile('autostart', 'Start with Windows', 'Per user, no admin rights.'),
+    Tile('force_small_zones', 'Force small zones', 'Squeeze apps below their own minimum size (Chrome, Discord...). Risky: they can cut content, draw wrong or resize back.'),
   );
+  $('.t div', $('[data-k=force_small_zones]', tiles).closest('.tile')).append(' ', Badge('warn', 'Risky'));
   body(beh).appendChild(tiles);
   const gap = Input('', '0'); gap.dataset.k = 'zone_gap'; gap.inputMode = 'numeric';
   const bump = d => { gap.value = Math.max(0, Math.min(200, (parseInt(gap.value, 10) || 0) + d)); apply(); };
@@ -742,17 +744,13 @@ function renderDisplays() {
     + ` and drop it on a zone, or use ${lab(S.hotkeys.next_zone)}.`;
   for (const m of S.monitors.filter(x => x.id === selMon)) {
     const c = Card(m.label, 'The zones of this screen. To snap a window into one, ' + snapHow,
-      Btn('+ Draw my own', 'primary sm', () => { creating = m.id; saving = null; renderDisplays(); }));
+      Btn('+ Draw my own', 'primary sm', () => { creating = null; saving = null; send({ type: 'new_preset', monitor: m.id }); }));
     $('h3', c).append(Badge('muted', `${m.width}×${m.height}`));
     if (m.primary) $('h3', c).append(Badge('ice', 'Primary'));
     const custom = !S.presets.some(x => x.name === m.layout.name);
     $('h3', c).append(custom ? Badge('warn', 'Custom') : m.layout.builtin ? Badge('promo', 'Preset') : Badge('ok', 'Yours'));
     const b = body(c);
 
-    if (creating === m.id) {
-      b.appendChild(NameForm('newform', '', 'Draw zones', name => send({ type: 'new_preset', monitor: m.id, name }),
-        'The zone editor opens over the screen. Draw the zones, press Enter to save the preset, Esc to cancel.'));
-    }
     const grid = el('div', 'disp');
     const left = el('div'), right = el('div');
     grid.append(left, right);
@@ -967,7 +965,7 @@ function renderPlans() {
 
 // ---------- state in / out ----------
 const sw = k => $(`.sw[data-k="${k}"]`);
-const SWITCHES = ['enabled', 'shift_snap', 'remember_positions', 'autostart', 'log_enabled', 'check_updates'];
+const SWITCHES = ['enabled', 'shift_snap', 'remember_positions', 'force_small_zones', 'autostart', 'log_enabled', 'check_updates'];
 // ---------- updates ----------
 function ago(t) {
   if (!t) return 'never';
@@ -1046,7 +1044,7 @@ function collect() {
   const one = id => $$(`#${id} .tr input`).map(i => i.value);
   const on = k => sw(k).getAttribute('aria-checked') === 'true';
   return {
-    enabled: on('enabled'), shift_snap: on('shift_snap'), remember_positions: on('remember_positions'), autostart: on('autostart'), log_enabled: on('log_enabled'), check_updates: on('check_updates'),
+    enabled: on('enabled'), shift_snap: on('shift_snap'), remember_positions: on('remember_positions'), force_small_zones: on('force_small_zones'), autostart: on('autostart'), log_enabled: on('log_enabled'), check_updates: on('check_updates'),
     zone_gap: Number.parseInt($('[data-k=zone_gap]').value, 10),
     hotkeys: hk,
     fs_exit_keys: $$('#keys .tr').map(tr => ({ exe: $('input', tr).value, key: $('.cap', tr).dataset.value, stable: $('.sw.stable', tr).getAttribute('aria-checked') === 'true' })),
@@ -1077,7 +1075,20 @@ function apply() {
 buildNav(); buildGeneral(); buildShortcuts(); buildFullscreen(); buildExclusions(); buildSystem();
 document.addEventListener('click', e => {
   const s = e.target.closest('.sw');
-  if (s) { s.setAttribute('aria-checked', s.getAttribute('aria-checked') !== 'true'); apply(); }
+  if (!s) return;
+  // turning on "Force small zones" can break apps: say so first
+  if (s.dataset.k === 'force_small_zones' && s.getAttribute('aria-checked') !== 'true') {
+    Confirm({
+      title: 'Force apps smaller than they allow?',
+      body: ['Apps like Chrome, Discord or MobaXterm have a minimum size. With this on, ZoneLock squeezes them into smaller zones anyway.',
+        el('br'), el('br'),
+        'They were not made for it: content can be cut off, menus can draw wrong, some apps resize themselves back or misbehave until you make the window bigger again. Turn it off any time.'],
+      ok: 'Turn on anyway',
+      onOk: () => { s.setAttribute('aria-checked', 'true'); apply(); },
+    });
+    return;
+  }
+  s.setAttribute('aria-checked', s.getAttribute('aria-checked') !== 'true'); apply();
 });
 $('#main').addEventListener('change', e => { if (e.target.matches('input.in') && !e.target.closest('.saveas')) apply(); });
 $('#main').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.in') && !e.target.closest('.saveas')) e.target.blur(); });

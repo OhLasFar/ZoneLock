@@ -56,6 +56,10 @@ pub struct Config {
     /// Reopen app windows where they were left (positions.json).
     #[serde(default = "default_true")]
     pub remember_positions: bool,
+    /// Squeeze apps below their own minimum size when a zone is smaller
+    /// (risky: they may cut content or draw wrong). Off by default.
+    #[serde(default)]
+    pub force_small_zones: bool,
     /// Ask GitHub once a day whether a newer release exists (the only
     /// network use; update.rs).
     #[serde(default = "default_true")]
@@ -229,6 +233,7 @@ impl Default for Config {
             max_exit_sends: default_max_exit_sends(),
             shift_snap: true,
             remember_positions: true,
+            force_small_zones: false,
             check_updates: true,
             autostart: false,
             hotkeys: HotkeyConfig::default(),

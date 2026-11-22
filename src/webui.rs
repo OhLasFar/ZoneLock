@@ -577,7 +577,11 @@ fn on_message(json: &str) {
             return;
         }
         PageMsg::NewPreset { monitor, name } => {
-            match uimodel::check_new_preset_name(&cur, &name) {
+            let checked = match name {
+                Some(n) => uimodel::check_new_preset_name(&cur, &n).map(Some),
+                None => Ok(None),
+            };
+            match checked {
                 Ok(name) if mons.iter().any(|m| m.name == monitor) => {
                     crate::overlay::open_for_preset(Arc::clone(&shared), monitor, name);
                     return;
@@ -602,7 +606,7 @@ fn on_message(json: &str) {
                     .and_then(|cfg| commit(&shared, cfg))
                 {
                     Ok(()) => {
-                        crate::overlay::open_for_preset(Arc::clone(&shared), monitor, name);
+                        crate::overlay::open_for_preset(Arc::clone(&shared), monitor, Some(name));
                         return;
                     }
                     Err(e) => Err(e),
@@ -623,6 +627,7 @@ fn commit(shared: &Arc<Shared>, cfg: crate::config::Config) -> std::result::Resu
         message: format!("Could not write config: {e}"),
     })?;
     let (log_on, enabled) = (cfg.log_enabled, cfg.enabled);
+    crate::place::set_force_small(cfg.force_small_zones);
     let hk_changed = shared.config.read().unwrap().hotkeys != cfg.hotkeys;
     *shared.config.write().unwrap() = cfg;
     shared.bump();

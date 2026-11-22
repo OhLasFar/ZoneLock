@@ -93,9 +93,12 @@ low-end PCs for no gain in a settings window.
   says exactly what will happen; Cancel focused first, Esc / click
   outside cancel, confirm button `solid-danger`. Used before Replace and
   Clear on a plan.
-- **New preset flow**: name field + `Draw zones` -> editor opens with
-  `New preset "name"` in its hint -> Enter saves the preset and applies it
-  to that display. `Edit` on a user preset reopens the editor on it.
+- **New preset flow**: `+ Draw my own` -> the editor opens at once on a
+  blank screen -> Enter shows a name card in the editor (suggests
+  "Layout N") -> Enter saves the preset and applies it to that display.
+  `Edit` on a user preset reopens the editor on it (Enter saves, no card).
+- **Force small zones** tile (General): `warn` badge "Risky"; turning it
+  on goes through `Confirm` ("Turn on anyway"), turning it off does not.
 - **Preset chip**: mini layout + name; current one has a primary ring;
   user presets have their name in `ok` and a star tile in the top-right
   corner, replaced on hover/focus by Edit (pencil) and Delete (bin) icon

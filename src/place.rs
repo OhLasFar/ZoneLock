@@ -18,6 +18,15 @@ use crate::rect::Rect;
 const PLACE_FLAGS: SET_WINDOW_POS_FLAGS =
     SET_WINDOW_POS_FLAGS(SWP_NOACTIVATE.0 | SWP_NOZORDER.0 | SWP_NOOWNERZORDER.0);
 
+/// "Force small zones" (config `force_small_zones`, off by default): an
+/// app that stays bigger than its zone is pushed down to the zone size
+/// anyway. Set from the config by main / the settings page.
+static FORCE_SMALL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_force_small(on: bool) {
+    FORCE_SMALL.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Grow `rect` outward by the window's invisible DWM resize borders, so
 /// the VISIBLE frame lands flush on the zone edges (what Aero Snap does
 /// when it places windows slightly off-screen). Without this, snapping
@@ -205,9 +214,44 @@ pub fn apply_zone(hwnd: HWND, rect: &Rect) -> bool {
     let r = zone_rect_for(hwnd, rect);
     let ok = apply(hwnd, &r);
     if ok {
+        fit_or_force(hwnd, rect);
         keep_on_screen(hwnd, SET_WINDOW_POS_FLAGS(0));
     }
     ok
+}
+
+/// After a zone placement: learn the app's minimum size when it stayed
+/// bigger than the zone (`minsize`), and in "Force small zones" mode
+/// squeeze it to the zone anyway. SWP_NOSENDCHANGING skips
+/// WM_WINDOWPOSCHANGING, where Windows applies the app's
+/// WM_GETMINMAXINFO limits. The app was not designed for that size: it
+/// may cut its content, draw wrong or resize itself back.
+fn fit_or_force(hwnd: HWND, zone: &Rect) {
+    let Some((vis, _)) = visible_and_work(hwnd) else { return };
+    let target = (zone.width().max(0) as u32, zone.height().max(0) as u32);
+    let got = (vis.width().max(0) as u32, vis.height().max(0) as u32);
+    let dpi = unsafe { windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd) }.max(96);
+    let info = crate::wininfo::inspect(hwnd);
+    let exe = info.exe;
+    crate::minsize::observe(&exe, &crate::wininfo::process_path(info.pid), target, got, dpi);
+    let over = got.0 > target.0 + 3 || got.1 > target.1 + 3;
+    if !over || !FORCE_SMALL.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let r = zone_rect_for(hwnd, zone);
+    unsafe {
+        let _ = SetWindowPos(
+            hwnd,
+            Some(HWND_TOP),
+            r.left,
+            r.top,
+            r.width(),
+            r.height(),
+            SET_WINDOW_POS_FLAGS(PLACE_FLAGS.0 | SWP_NOSENDCHANGING.0),
+        );
+    }
+    let after = visible_and_work(hwnd).map(|(v, _)| (v.width(), v.height()));
+    crate::log::line(format!("forced {exe} below its minimum: {got:?} -> {after:?} (zone {target:?})"));
 }
 
 /// Strip WS_CAPTION | WS_THICKFRAME and place at `rect`, borderless.

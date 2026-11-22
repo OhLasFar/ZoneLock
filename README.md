@@ -117,7 +117,7 @@ Windows 10 or 11, 64-bit. Grab the latest version from the
 
 1. **Run ZoneLock.** Its icon appears in the system tray (next to the clock).
 2. **Left-click the icon** to open Settings → **Displays**, and pick a layout
-   for each monitor (or click **+ New preset** and draw one).
+   for each monitor (or click **+ Draw my own** and draw one).
 3. **Use your apps.** Hold **Shift** while dragging a window to snap it into
    a zone. Press F11 in a video sitting in a zone: it stays in its zone.
    The maximize button is a normal maximize.
@@ -143,8 +143,12 @@ All of them can be changed in **Settings → Shortcuts**. Forgot one? Press
 | `Ctrl+Alt+Shift+1…9` | Save the open apps as plan 1–9 (asks before overwriting) |
 | `F11` / `Esc` | Leave fullscreen as usual |
 
-In the zone editor: drag to draw a zone, drag its dots to resize, right-click
-to delete, `1`–`7` apply a built-in preset, `Enter` saves, `Esc` cancels.
+In the zone editor: drag to draw a zone, or click a **+** (the big one fills
+an empty spot, the small ones on a zone's sides split it in two). Drag an
+edge to resize: zones sharing it follow (hold `Ctrl` to move one zone only).
+`G` shows a grid to snap to, right-click deletes, `1`–`7` apply a built-in
+preset, `Enter` saves (a new layout asks for its name), `Esc` cancels.
+Zones too small for one of your apps show that app's icon crossed out.
 
 ## Good to know
 

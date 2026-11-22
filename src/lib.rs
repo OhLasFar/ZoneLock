@@ -1,6 +1,7 @@
 //! ZoneLock library: zone model, config, monitor enumeration, window
 //! inspection, containment engine and the WinEvent watcher.
 
+pub mod appicon;
 pub mod autostart;
 pub mod cheatsheet;
 pub mod config;
@@ -11,6 +12,7 @@ pub mod icon;
 pub mod log;
 pub mod logo;
 pub mod memory;
+pub mod minsize;
 pub mod monitor;
 pub mod overlay;
 pub mod place;

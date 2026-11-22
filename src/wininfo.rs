@@ -124,6 +124,12 @@ pub fn inspect(hwnd: HWND) -> WindowInfo {
 }
 
 fn process_exe(pid: u32) -> String {
+    let full = process_path(pid);
+    full.rsplit('\\').next().unwrap_or("").to_string()
+}
+
+/// Full path of a process' program ("" when it cannot be read).
+pub fn process_path(pid: u32) -> String {
     unsafe {
         let Ok(h) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else {
             return String::new();
@@ -138,8 +144,7 @@ fn process_exe(pid: u32) -> String {
         )
         .is_ok()
         {
-            let full = String::from_utf16_lossy(&buf[..len as usize]);
-            full.rsplit('\\').next().unwrap_or("").to_string()
+            String::from_utf16_lossy(&buf[..len as usize])
         } else {
             String::new()
         };
