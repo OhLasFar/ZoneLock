@@ -32,6 +32,7 @@ const IDC_HK_ZONE: u16 = 208;
 const IDC_FSKEYS: u16 = 209;
 const IDC_SAVE: u16 = 210;
 const IDC_CANCEL: u16 = 211;
+const IDC_HK_DRAG: u16 = 212;
 
 // logical (96 dpi) metrics
 const W: i32 = 480;
@@ -568,7 +569,7 @@ fn layout(dpi: u32) -> (Vec<(RECT, String, u32)>, Vec<(u16, RECT, Ck)>) {
 
     section!("GENERAL");
     ctrls.push((IDC_ENABLED, row!("Enable ZoneLock (window containment)"), Ck::Toggle));
-    ctrls.push((IDC_SHIFT_SNAP, row!("Shift+drag snaps windows into zones"), Ck::Toggle));
+    ctrls.push((IDC_SHIFT_SNAP, row!("Dragging a window can show zones and snap"), Ck::Toggle));
     ctrls.push((IDC_AUTOSTART, row!("Start with Windows"), Ck::Toggle));
     ctrls.push((IDC_LOG, row!("Verbose log (%APPDATA%\\ZoneLock\\zonelock.log)"), Ck::Toggle));
     y += 10;
@@ -586,6 +587,7 @@ fn layout(dpi: u32) -> (Vec<(RECT, String, u32)>, Vec<(u16, RECT, Ck)>) {
         (IDC_HK_EDITOR, "Zone editor"),
         (IDC_HK_PRESET, "Next preset"),
         (IDC_HK_ZONE, "Window to next zone"),
+        (IDC_HK_DRAG, "Snap key while dragging"),
     ] {
         let (id, fr) = field!(id, label);
         ctrls.push((id, fr, Ck::Edit(false)));
@@ -649,7 +651,7 @@ unsafe fn build_controls(hwnd: HWND) {
     }
     // font for child edits
     let font = ui::segoe(9, 400, dpi);
-    for id in [IDC_GAP, IDC_HK_TOGGLE, IDC_HK_EDITOR, IDC_HK_PRESET, IDC_HK_ZONE, IDC_FSKEYS] {
+    for id in [IDC_GAP, IDC_HK_TOGGLE, IDC_HK_EDITOR, IDC_HK_PRESET, IDC_HK_ZONE, IDC_HK_DRAG, IDC_FSKEYS] {
         let c = ctrl(hwnd, id);
         if !c.0.is_null() {
             let _ = SendMessageW(c, WM_SETFONT, Some(WPARAM(font.0 as usize)), Some(LPARAM(1)));
@@ -686,6 +688,7 @@ fn populate(hwnd: HWND) {
             set_text(hwnd, IDC_HK_EDITOR, &cfg.hotkeys.editor);
             set_text(hwnd, IDC_HK_PRESET, &cfg.hotkeys.next_preset);
             set_text(hwnd, IDC_HK_ZONE, &cfg.hotkeys.next_zone);
+            set_text(hwnd, IDC_HK_DRAG, &cfg.hotkeys.drag_snap);
             let keys = cfg
                 .fs_exit_keys
                 .iter()
@@ -726,6 +729,12 @@ fn apply(hwnd: HWND) -> bool {
                 return false;
             }
         }
+        let drag = get_text(hwnd, IDC_HK_DRAG);
+        let drag = drag.trim();
+        if !drag.is_empty() && crate::hotkeys::parse_mods(drag).is_none() {
+            err_box(hwnd, &format!("'{drag}' is not a valid modifier set (e.g. Shift, Ctrl+Alt; empty = no key)."));
+            return false;
+        }
         let mut keys = std::collections::BTreeMap::new();
         for (ln, line) in get_text(hwnd, IDC_FSKEYS).lines().enumerate() {
             let line = line.trim();
@@ -751,6 +760,7 @@ fn apply(hwnd: HWND) -> bool {
         cfg.hotkeys.editor = hk[1].1.trim().to_string();
         cfg.hotkeys.next_preset = hk[2].1.trim().to_string();
         cfg.hotkeys.next_zone = hk[3].1.trim().to_string();
+        cfg.hotkeys.drag_snap = drag.to_string();
         cfg.fs_exit_keys = keys;
 
         let want_start = checked(hwnd, IDC_AUTOSTART);

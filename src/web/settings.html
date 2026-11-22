@@ -349,7 +349,7 @@ function vkName(vk) {
 }
 const keyLabel = (e, name) => (name.startsWith('VK_') && e.key && e.key.length === 1) ? e.key.toUpperCase() : name;
 const modsOf = e => [e.metaKey && 'Win', e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean);
-const PH = { combo: ['Set shortcut', 'Press the combination…'], key: ['Set key', 'Press a key…'], mods: ['Set modifiers', 'Hold modifiers + any digit…'] };
+const PH = { combo: ['Set shortcut', 'Press the combination…'], key: ['Set key', 'Press a key…'], mods: ['Set modifiers', 'Hold modifiers + any digit…'], mod: ['No key needed', 'Hold keys, then press any key…'] };
 const DIGITS = '1…9';
 
 function renderKeys(box, label, placeholder) {
@@ -359,7 +359,8 @@ function renderKeys(box, label, placeholder) {
 }
 let rec = null;   // capture box currently recording
 // mode 'combo' = global shortcut, 'key' = single fullscreen exit key,
-// 'mods' = modifiers only (plan shortcuts: the digit 1-9 is implied)
+// 'mods' = modifiers only (plan shortcuts: the digit 1-9 is implied),
+// 'mod' = modifiers only, nothing added (drag-snap key; Backspace = none)
 function KeyBox(mode, value, label) {
   const box = el('button', 'cap' + (mode === 'key' ? ' small' : ''));
   box.dataset.mode = mode; box.dataset.value = value || ''; box.dataset.label = label || value || '';
@@ -385,13 +386,17 @@ document.addEventListener('keydown', e => {
   if (!rec) return;
   e.preventDefault(); e.stopPropagation();
   if (e.keyCode === 229) return;                                   // IME composition
-  const mods = modsOf(e), box = rec, combo = box.dataset.mode === 'combo', modsOnly = box.dataset.mode === 'mods';
+  const mods = modsOf(e), box = rec, combo = box.dataset.mode === 'combo', modsOnly = box.dataset.mode === 'mods', modOnly = box.dataset.mode === 'mod';
   if (e.key === 'Escape' && !mods.length) return stopRec();
-  if (MODKEYS.has(e.key)) { if (combo || modsOnly) renderKeys(box, mods.join('+') + '+' + (modsOnly ? DIGITS : '…')); return; }
-  if (modsOnly) {
-    if (!mods.length) { toast('Hold at least one of Ctrl, Alt, Shift or Win, then press a digit.', 'bad'); return; }
+  if (MODKEYS.has(e.key)) { if (combo || modsOnly || modOnly) renderKeys(box, mods.join('+') + '+' + (modsOnly ? DIGITS : '…')); return; }
+  if (modOnly && (e.key === 'Backspace' || e.key === 'Delete')) {
+    box.dataset.value = ''; box.dataset.label = '';
+    stopRec(); apply(); return;
+  }
+  if (modsOnly || modOnly) {
+    if (!mods.length) { toast('Hold at least one of Ctrl, Alt, Shift or Win, then press a key.', 'bad'); return; }
     box.dataset.value = mods.join('+');
-    box.dataset.label = mods.join('+') + '+' + DIGITS;
+    box.dataset.label = mods.join('+') + (modsOnly ? '+' + DIGITS : '');
     stopRec(); apply(); return;
   }
   const name = vkName(e.keyCode), label = keyLabel(e, name);
@@ -462,7 +467,7 @@ function buildGeneral() {
   const beh = Card('Behaviour', 'Every change applies immediately.');
   const tiles = el('div', 'tiles');
   tiles.append(
-    Tile('shift_snap', 'Shift + drag to snap', 'Hold Shift while moving a window to show the zones, drop on one to snap.'),
+    Tile('shift_snap', 'Drag to snap', 'Hold the snap key while moving a window to show the zones, drop on one to snap.'),
     Tile('remember_positions', 'Reopen apps where you left them', 'A closed app comes back where it was, unless another of its windows is already open.'),
     Tile('autostart', 'Start with Windows', 'Per user, no admin rights.'),
   );
@@ -479,16 +484,17 @@ function buildGeneral() {
 function buildShortcuts() {
   const c = Card('Global shortcuts', 'Esc cancels a recording. Shortcuts Windows already uses cannot be recorded.');
   const b = body(c, true);
-  for (const [k, label, hint] of [
-    ['toggle', 'Pause / resume', 'Turns containment on or off.'],
-    ['editor', 'Zone editor', 'Draw zones over every display.'],
-    ['next_preset', 'Next preset', 'On the display under the mouse.'],
-    ['next_zone', 'Window to next zone', 'Moves the active window.'],
-    ['prev_zone', 'Window to previous zone', 'Moves the active window back.'],
-    ['fs_toggle', 'Fullscreen: zone or whole screen', 'A fullscreen window in its zone takes the whole screen, and back.'],
-    ['cheatsheet', 'Show all shortcuts', 'A card in the middle of the screen. Esc or the same keys close it.'],
+  for (const [k, mode, label, hint] of [
+    ['drag_snap', 'mod', 'Snap into a zone', 'Hold these keys while moving a window: the zones appear, drop on one to snap. Backspace while recording = no key needed.'],
+    ['toggle', 'combo', 'Pause / resume', 'Turns containment on or off.'],
+    ['editor', 'combo', 'Zone editor', 'Draw zones over every display.'],
+    ['next_preset', 'combo', 'Next preset', 'On the display under the mouse.'],
+    ['next_zone', 'combo', 'Window to next zone', 'Moves the active window.'],
+    ['prev_zone', 'combo', 'Window to previous zone', 'Moves the active window back.'],
+    ['fs_toggle', 'combo', 'Fullscreen: zone or whole screen', 'A fullscreen window in its zone takes the whole screen, and back.'],
+    ['cheatsheet', 'combo', 'Show all shortcuts', 'A card in the middle of the screen. Esc or the same keys close it.'],
   ]) {
-    const box = KeyBox('combo', ''); box.dataset.k = 'hotkeys.' + k;
+    const box = KeyBox(mode, ''); box.dataset.k = 'hotkeys.' + k;
     const st = el('span', 'st'); st.dataset.st = k;
     b.appendChild(Row(label, hint, box, st));
   }
@@ -544,6 +550,7 @@ function buildSystem() {
   body(mt, true).append(
     Row('Verbose log', 'Writes zonelock.log in the config folder, rotated at 1 MB.', Switch('log_enabled', 'Verbose log')),
     Row('Config folder', '%APPDATA%\\ZoneLock', Btn('Open folder', 'outline', () => send({ type: 'open_config_dir' }))),
+    Row('Intro card', 'The welcome screen shown the first time ZoneLock starts.', Btn('Show again', 'outline', () => send({ type: 'welcome' }))),
     Row('Quit ZoneLock', 'Stops containment until the next start.', Btn('Quit', 'danger', () => send({ type: 'quit' }))),
   );
   const ab = Card('About', null);
@@ -770,9 +777,18 @@ function fillShortcuts() {
     box.classList.remove('bad'); box.classList.toggle('warn', rej.includes(k));
     renderKeys(box, box.dataset.label, PH[mode][0]);
     const st = $(`[data-st="${k}"]`); st.textContent = '';
-    st.appendChild(rej.includes(k) ? Badge('warn', 'Taken', true) : Badge('ok', 'Ready', true));
+    if (rej.includes(k)) st.appendChild(Badge('warn', 'Taken', true));
   });
   setCount('shortcuts', rej.length ? Badge('warn', rej.length + ' taken') : null);
+  // the General tile mirrors the configured drag-snap key
+  const dm = S.hotkeys.drag_snap ? (S.key_labels[S.hotkeys.drag_snap] || S.hotkeys.drag_snap) : '';
+  const dtile = sw('shift_snap') && sw('shift_snap').closest('.tile');
+  if (dtile) {
+    $('.t div', dtile).textContent = dm ? dm + ' + drag to snap' : 'Drag to snap';
+    $('small', dtile).textContent = dm
+      ? `Hold ${dm} while moving a window to show the zones, drop on one to snap.`
+      : 'Moving a window shows the zones; drop on one to snap. A key can be set on the Shortcuts page.';
+  }
 }
 function fillCounts() {
   setCount('fullscreen', Badge('ice', String(S.fs_exit_keys.length)));

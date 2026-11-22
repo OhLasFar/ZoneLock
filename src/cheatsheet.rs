@@ -50,11 +50,14 @@ pub fn sections(hk: &HotkeyConfig) -> Vec<(&'static str, Vec<Line>)> {
         k
     };
     let line = |a: &str, k: Vec<String>| Line { action: a.into(), keys: k };
+    // the drag key is the configured modifier set (empty = every drag)
+    let mut drag = split_keys(&crate::hotkeys::binding_label(&hk.drag_snap));
+    drag.push("drag".into());
     vec![
         (
             "Windows",
             vec![
-                line("Snap into a zone", vec!["Shift".into(), "drag".into()]),
+                line("Snap into a zone", drag),
                 line("Next zone", keys(&hk.next_zone)),
                 line("Previous zone", keys(&hk.prev_zone)),
                 line("Fullscreen: zone or whole screen", keys(&hk.fs_toggle)),
@@ -298,6 +301,8 @@ mod tests {
         let s = sections(&hk);
         let all: Vec<&Line> = s.iter().flat_map(|(_, l)| l.iter()).collect();
         assert_eq!(all.len(), 10);
+        let snap = all.iter().find(|l| l.action == "Snap into a zone").unwrap();
+        assert_eq!(snap.keys, vec!["Shift".to_string(), "drag".to_string()]);
         let plan = all.iter().find(|l| l.action.starts_with("Go to plan")).unwrap();
         assert_eq!(plan.keys.last().unwrap(), "1\u{2026}9");
         assert!(all.iter().any(|l| l.action.starts_with("Fullscreen") && l.keys.contains(&"\u{2191}".to_string())));

@@ -28,5 +28,6 @@ pub mod update;
 pub mod uidraw;
 pub mod watcher;
 pub mod webui;
+pub mod welcome;
 pub mod wininfo;
 pub mod zones;

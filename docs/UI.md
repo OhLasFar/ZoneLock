@@ -64,7 +64,10 @@ low-end PCs for no gain in a settings window.
 - **Key box**: click to record, shows keys as `kbd` caps. Stores the
   Windows virtual key, so any layout works (`VK_DD` shows as `Ç` on CMS).
   While recording a global shortcut, ZoneLock's own hotkeys are
-  suspended so they can be recorded too. Esc cancels.
+  suspended so they can be recorded too. Esc cancels. Modes: `combo`
+  (full shortcut), `key` (one exit key), `mods` (modifiers only, the
+  plan digit is implied), `mod` (modifiers only - the drag-snap key;
+  Backspace clears to "no key needed").
 - **Buttons**: `primary` (filled + glow), `outline`, `ghost`, `danger`;
   `sm` (34px) in card headers; `.press` scale on click.
 - **Fullscreen apps table**: Program | Exit key (key box) | Stable

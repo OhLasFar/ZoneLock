@@ -109,6 +109,11 @@ pub struct HotkeyConfig {
     /// Modifiers for "save the current windows as plan N".
     #[serde(default = "hk_plan_save")]
     pub plan_save: String,
+    /// Modifier set held while dragging a window to show the zones and
+    /// snap on drop ("Shift", "Ctrl+Alt", ...). Empty = no key needed,
+    /// the zones appear on every drag.
+    #[serde(default = "hk_drag_snap")]
+    pub drag_snap: String,
 }
 
 impl Default for HotkeyConfig {
@@ -123,6 +128,7 @@ impl Default for HotkeyConfig {
             cheatsheet: hk_cheatsheet(),
             plan_go: hk_plan_go(),
             plan_save: hk_plan_save(),
+            drag_snap: hk_drag_snap(),
         }
     }
 }
@@ -157,6 +163,9 @@ fn hk_plan_go() -> String {
 }
 fn hk_plan_save() -> String {
     "Ctrl+Alt+Shift".into()
+}
+fn hk_drag_snap() -> String {
+    "Shift".into()
 }
 
 fn default_fs_exit_keys() -> std::collections::BTreeMap<String, String> {

@@ -56,6 +56,9 @@ fn main() {
         }
     }
 
+    // No config file = first start after install: the load below writes
+    // the defaults, so this must be checked before it.
+    let first_run = !config::config_path().exists();
     let cfg = match Config::load() {
         Ok(c) => c,
         Err(e) => {
@@ -116,6 +119,10 @@ fn main() {
     *HK_IDS.lock().unwrap() = hk_ids;
     // daily update check (if allowed); results come back as UiCmd::UpdateChanged
     zonelock::update::spawn_auto(Arc::clone(&shared));
+    // brand-new install: say hello with the core gestures
+    if first_run {
+        zonelock::welcome::show(&shared.config.read().unwrap().hotkeys);
+    }
     // we are the new version, started by an update: say it went well
     if zonelock::update::just_updated() {
         log::line(format!("updated to {}", env!("CARGO_PKG_VERSION")));

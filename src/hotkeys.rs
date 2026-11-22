@@ -2,8 +2,9 @@
 
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS, MOD_ALT, MOD_CONTROL,
-    MOD_NOREPEAT, MOD_SHIFT, MOD_WIN,
+    GetAsyncKeyState, RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS,
+    MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, MOD_WIN, VK_CONTROL,
+    VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
 };
 
 use crate::config::HotkeyConfig;
@@ -39,6 +40,16 @@ pub fn parse_mods(mods: &str) -> Option<HOT_KEY_MODIFIERS> {
         Some((m, 0x31)) if m.0 != 0 => Some(m),
         _ => None,
     }
+}
+
+/// True while every modifier in `m` is physically held. Polled, not a
+/// registered hotkey: combos the OS reserves (Win+Alt+arrows, ...) work.
+pub fn mods_held(m: HOT_KEY_MODIFIERS) -> bool {
+    let down = |vk: u16| unsafe { (GetAsyncKeyState(vk as i32) as u16 & 0x8000) != 0 };
+    (m.0 & MOD_SHIFT.0 == 0 || down(VK_SHIFT.0))
+        && (m.0 & MOD_CONTROL.0 == 0 || down(VK_CONTROL.0))
+        && (m.0 & MOD_ALT.0 == 0 || down(VK_MENU.0))
+        && (m.0 & MOD_WIN.0 == 0 || down(VK_LWIN.0) || down(VK_RWIN.0))
 }
 
 /// Parse "Mod+Mod+Key" into (modifiers, vk). Returns None when malformed.

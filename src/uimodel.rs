@@ -139,6 +139,8 @@ pub enum PageMsg {
     OpenEditor,
     OpenConfigDir,
     OpenCredit,
+    /// Show the first-run intro card again.
+    Welcome,
     /// Updates: ask GitHub now, install the found version, open its page.
     UpdateCheck,
     UpdateInstall,
@@ -315,6 +317,13 @@ pub fn apply_settings(cfg: &Config, s: &UiSettings) -> Result<Config, UiError> {
             "Saving a plan needs different keys than going to a plan.",
         ));
     }
+    let drag = s.hotkeys.drag_snap.trim();
+    if !drag.is_empty() && crate::hotkeys::parse_mods(drag).is_none() {
+        return Err(err(
+            "hotkeys.drag_snap",
+            "Snap while dragging needs modifiers only (e.g. Shift, Ctrl+Alt), or nothing for no key.",
+        ));
+    }
     let mut keys = std::collections::BTreeMap::new();
     let mut stable = Vec::new();
     for (i, row) in s.fs_exit_keys.iter().enumerate() {
@@ -353,6 +362,7 @@ pub fn apply_settings(cfg: &Config, s: &UiSettings) -> Result<Config, UiError> {
         cheatsheet: s.hotkeys.cheatsheet.trim().to_string(),
         plan_go: go.to_string(),
         plan_save: save.to_string(),
+        drag_snap: drag.to_string(),
     };
     out.fs_exit_keys = keys;
     out.fs_stable = stable;
@@ -631,6 +641,27 @@ mod tests {
     }
 
     #[test]
+    fn drag_snap_modifiers_only_or_empty() {
+        let cfg = Config::default();
+        let st = build_state(&cfg, false, &[]);
+        // default is Shift, other modifier sets pass, empty means no key
+        let mut s = settings_from(&st);
+        assert_eq!(s.hotkeys.drag_snap, "Shift");
+        s.hotkeys.drag_snap = "Ctrl+Alt".into();
+        assert_eq!(apply_settings(&cfg, &s).unwrap().hotkeys.drag_snap, "Ctrl+Alt");
+        let mut s = settings_from(&st);
+        s.hotkeys.drag_snap = "".into();
+        assert_eq!(apply_settings(&cfg, &s).unwrap().hotkeys.drag_snap, "");
+        // a key or a made-up name is refused
+        let mut s = settings_from(&st);
+        s.hotkeys.drag_snap = "Alt+Q".into();
+        assert_eq!(apply_settings(&cfg, &s).unwrap_err().field, "hotkeys.drag_snap");
+        let mut s = settings_from(&st);
+        s.hotkeys.drag_snap = "Banana".into();
+        assert_eq!(apply_settings(&cfg, &s).unwrap_err().field, "hotkeys.drag_snap");
+    }
+
+    #[test]
     fn exclusions_cleaned() {
         let cfg = Config::default();
         let st = build_state(&cfg, false, &[]);
@@ -735,5 +766,7 @@ mod tests {
         assert!(matches!(m, PageMsg::SavePreset { .. }));
         let m: PageMsg = serde_json::from_str(r#"{"type":"quit"}"#).unwrap();
         assert!(matches!(m, PageMsg::Quit));
+        let m: PageMsg = serde_json::from_str(r#"{"type":"welcome"}"#).unwrap();
+        assert!(matches!(m, PageMsg::Welcome));
     }
 }

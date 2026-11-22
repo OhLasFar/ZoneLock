@@ -1,16 +1,18 @@
-//! Shift+drag snap overlay (FancyZones-style). One click-through
-//! translucent window per monitor shows the zone outlines while the user
-//! drags a window with Shift held; the zone under the cursor is
-//! highlighted and, on drop, the window is placed there.
+//! Drag-snap overlay (FancyZones-style). One click-through translucent
+//! window per monitor shows the zone outlines while the user drags a
+//! window with the configured modifier held (`hotkeys.drag_snap`, Shift
+//! by default; empty = no key needed, every drag shows the zones); the
+//! zone under the cursor is highlighted and, on drop, the window is
+//! placed there.
 //!
 //! Lives entirely on the watcher thread: that thread already owns a
 //! message loop and our own-process WinEvents are filtered out, so these
 //! windows never feed back into the engine. `WS_EX_TRANSPARENT` makes
 //! them click-through so the drag itself is never disturbed.
 //!
-//! Shift may be held before the drag starts OR pressed mid-drag: the
-//! drag is always tracked and the overlay opens/closes live with the
-//! Shift state until MOVESIZEEND. Drop snaps only while the overlay is
+//! The modifier may be held before the drag starts OR pressed mid-drag:
+//! the drag is always tracked and the overlay opens/closes live with its
+//! state until MOVESIZEEND. Drop snaps only while the overlay is
 //! visible.
 
 use std::cell::{Cell, RefCell};
@@ -19,7 +21,7 @@ use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_SHIFT};
+use windows::Win32::UI::Input::KeyboardAndMouse::HOT_KEY_MODIFIERS;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 use crate::monitor::Monitor;
@@ -40,8 +42,11 @@ struct DragWin {
 thread_local! {
     static WINS: RefCell<Vec<DragWin>> = const { RefCell::new(Vec::new()) };
     /// Monitor+layout snapshot taken at MOVESIZESTART, consumed lazily
-    /// when Shift first goes down.
+    /// when the trigger first goes down.
     static PENDING: RefCell<Vec<(Monitor, Layout)>> = const { RefCell::new(Vec::new()) };
+    /// Modifier set that opens the overlay for the current drag
+    /// (None = no key needed, the overlay follows every drag).
+    static TRIGGER: Cell<Option<HOT_KEY_MODIFIERS>> = const { Cell::new(None) };
     static DRAGGED: Cell<isize> = const { Cell::new(0) };
 }
 
@@ -60,9 +65,13 @@ pub fn dragged() -> isize {
     DRAGGED.with(|d| d.get())
 }
 
-/// True while the user physically holds Shift.
-pub fn shift_held() -> bool {
-    unsafe { (GetAsyncKeyState(VK_SHIFT.0 as i32) as u16 & 0x8000) != 0 }
+/// True while the trigger condition is met: every configured modifier
+/// held, or always when no key is configured.
+pub fn trigger_held() -> bool {
+    TRIGGER.with(|t| match t.get() {
+        None => true,
+        Some(m) => crate::hotkeys::mods_held(m),
+    })
 }
 
 /// Pure hit-test: zone pixel-rect under (x, y), or None.
@@ -73,11 +82,17 @@ pub fn target_at(layout: &Layout, mon: &Rect, x: i32, y: i32) -> Option<Rect> {
         .map(|f| f.to_pixels(mon, 0))
 }
 
-/// Track a window drag. The overlay itself appears as soon as Shift is
-/// held, now or mid-drag.
-pub fn begin(hwnd: isize, mons: &[Monitor], layouts: &LayoutSet) {
+/// Track a window drag. The overlay itself appears as soon as the
+/// trigger is held, now or mid-drag.
+pub fn begin(
+    hwnd: isize,
+    mons: &[Monitor],
+    layouts: &LayoutSet,
+    trigger: Option<HOT_KEY_MODIFIERS>,
+) {
     end();
     DRAGGED.with(|d| d.set(hwnd));
+    TRIGGER.with(|t| t.set(trigger));
     PENDING.with(|p| {
         *p.borrow_mut() = mons
             .iter()
@@ -89,7 +104,7 @@ pub fn begin(hwnd: isize, mons: &[Monitor], layouts: &LayoutSet) {
             })
             .collect();
     });
-    if shift_held() {
+    if trigger_held() {
         open_now();
     }
 }
@@ -169,13 +184,13 @@ fn close_now() {
 }
 
 /// Called on the fast watcher tick while a drag is tracked: shows /
-/// hides the overlay with the live Shift state and refreshes the hot
+/// hides the overlay with the live trigger state and refreshes the hot
 /// zone.
 pub fn poll() {
     if !dragging() {
         return;
     }
-    if shift_held() {
+    if trigger_held() {
         if !active() {
             open_now();
         } else {
@@ -183,7 +198,7 @@ pub fn poll() {
         }
     } else if active() {
         close_now();
-        crate::log::line("drag-overlay hidden (shift released)");
+        crate::log::line("drag-overlay hidden (trigger released)");
     }
 }
 
@@ -225,6 +240,7 @@ pub fn target_at_cursor() -> Option<Rect> {
 /// Stop tracking the drag and destroy any overlay windows.
 pub fn end() {
     DRAGGED.with(|d| d.set(0));
+    TRIGGER.with(|t| t.set(None));
     PENDING.with(|p| p.borrow_mut().clear());
     close_now();
 }

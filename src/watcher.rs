@@ -790,8 +790,8 @@ pub fn run(shared: Arc<Shared>) {
                 break;
             }
             // Wait for messages; time out every TICK_MS to re-poll config,
-            // monitor layout and prune dead hwnds. During a Shift+drag we
-            // tick fast to track the cursor for the zone highlight.
+            // monitor layout and prune dead hwnds. During a drag we tick
+            // fast to track the cursor for the zone highlight.
             let wait_ms = if dragzones::dragging() { 30 } else { TICK_MS };
             let wait = MsgWaitForMultipleObjectsEx(
                 None,
@@ -829,9 +829,10 @@ pub fn run(shared: Arc<Shared>) {
     log::line("watcher stopped");
 }
 
-/// Shift+drag lifecycle: every eligible MOVESIZESTART is tracked; the
-/// overlay appears whenever Shift is held (before or during the drag)
-/// and MOVESIZEEND snaps the window into the zone under the cursor.
+/// Drag-snap lifecycle: every eligible MOVESIZESTART is tracked; the
+/// overlay appears whenever the configured modifier is held (before or
+/// during the drag) and MOVESIZEEND snaps the window into the zone under
+/// the cursor.
 fn on_drag_start(hwnd: HWND) {
     with_ctx(|ctx| {
         let cfg = ctx.shared.config.read().unwrap().clone();
@@ -845,8 +846,14 @@ fn on_drag_start(hwnd: HWND) {
         {
             return;
         }
+        // empty = no key needed; an invalid value falls back to Shift
+        let trigger = match cfg.hotkeys.drag_snap.trim() {
+            "" => None,
+            s => crate::hotkeys::parse_mods(s)
+                .or_else(|| crate::hotkeys::parse_mods("Shift")),
+        };
         let mons = ctx.shared.monitors.read().unwrap().clone();
-        dragzones::begin(hwnd.0 as isize, &mons, &cfg.layouts);
+        dragzones::begin(hwnd.0 as isize, &mons, &cfg.layouts, trigger);
     });
 }
 
@@ -874,8 +881,8 @@ fn on_drag_end(hwnd: HWND) {
 }
 
 fn periodic_tick(shared: &Arc<Shared>, _tid: u32) {
-    // Show/hide the drag overlay with the live Shift state and keep the
-    // highlight in sync (Shift may go down mid-drag).
+    // Show/hide the drag overlay with the live trigger state and keep the
+    // highlight in sync (the modifier may go down mid-drag).
     if dragzones::dragging() {
         dragzones::poll();
     }

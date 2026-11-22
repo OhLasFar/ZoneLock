@@ -434,6 +434,7 @@ fn state_json(shared: &Shared) -> serde_json::Value {
         &cfg.hotkeys.cheatsheet,
         &cfg.hotkeys.plan_go,
         &cfg.hotkeys.plan_save,
+        &cfg.hotkeys.drag_snap,
     ];
     for b in bindings.into_iter().chain(cfg.fs_exit_keys.values()) {
         st.key_labels.insert(b.clone(), crate::hotkeys::binding_label(b));
@@ -481,6 +482,10 @@ fn on_message(json: &str) {
         }
         PageMsg::OpenEditor => return crate::tray::send(UiCmd::OpenEditor),
         PageMsg::OpenConfigDir => return crate::tray::send(UiCmd::OpenConfigDir),
+        PageMsg::Welcome => {
+            crate::welcome::show(&cur.hotkeys);
+            return;
+        }
         PageMsg::UpdateCheck => return crate::update::check(false),
         PageMsg::UpdateInstall => return crate::update::install(),
         PageMsg::UpdatePage => return crate::update::open_page(),
