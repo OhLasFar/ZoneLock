@@ -217,6 +217,27 @@ fn handle_cmd(shared: &Arc<Shared>, cmd: UiCmd) {
             }
             zonelock::webui::refresh();
         }
+        UiCmd::DesktopChanged(plan) => {
+            if let Some(n) = plan {
+                match zonelock::plans::arrange(shared, n) {
+                    Ok(moved) if moved > 0 => {
+                        let cur = zonelock::vdesk::current().unwrap_or_default();
+                        let desk = zonelock::vdesk::list()
+                            .into_iter()
+                            .find(|d| d.id == cur)
+                            .map(|d| d.name)
+                            .unwrap_or_else(|| "This desktop".into());
+                        zonelock::planprompt::show_success(
+                            &format!("Plan {n} arranged"),
+                            &format!("{desk}: {moved} window{} moved.", if moved == 1 { "" } else { "s" }),
+                        );
+                    }
+                    Ok(_) => {}
+                    Err(e) => log::line(format!("plan {n}: {e}")),
+                }
+            }
+            zonelock::webui::refresh();
+        }
         UiCmd::SuspendHotkeys => {
             let hwnd = HWND(TRAY_HWND.load(Ordering::Relaxed) as *mut _);
             let mut ids = HK_IDS.lock().unwrap();

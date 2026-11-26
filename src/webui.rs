@@ -443,6 +443,7 @@ fn state_json(shared: &Shared) -> serde_json::Value {
         &crate::setups::known(),
         &crate::setups::snapshot(&mons, crate::setups::now_secs()),
     );
+    st.desktops = uimodel::desktops_ui(&cfg, &crate::vdesk::list(), crate::vdesk::current().as_deref());
     let bindings = [
         &cfg.hotkeys.toggle,
         &cfg.hotkeys.editor,
@@ -539,6 +540,10 @@ fn on_message(json: &str) {
             .and_then(|plan| uimodel::set_plan(&cur, slot, plan)),
         PageMsg::PlanClear { slot } => Ok(uimodel::clear_plan(&cur, slot)),
         PageMsg::SetupPlan { key, slot } => uimodel::set_setup_plan(&cur, &key, slot),
+        PageMsg::DesktopPlan { desktop, slot } => {
+            let known: Vec<String> = crate::vdesk::list().into_iter().map(|d| d.id).collect();
+            uimodel::set_desktop_plan(&cur, &desktop, slot, &known)
+        }
         PageMsg::ReplaceScreen { old, monitor } => {
             let old_d = crate::setups::old_screens(&crate::setups::known(), &mons)
                 .into_iter()

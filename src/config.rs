@@ -80,6 +80,10 @@ pub struct Config {
     /// when the connected screens change to that setup.
     #[serde(default)]
     pub setup_plans: std::collections::BTreeMap<String, u8>,
+    /// Virtual desktop id (vdesk.rs, "{GUID}") -> plan slot arranged when
+    /// the user switches to that desktop.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub desktop_plans: std::collections::BTreeMap<String, u8>,
     /// Presets saved by the user (on top of the built-in ones).
     #[serde(default)]
     pub user_presets: Vec<crate::zones::Layout>,
@@ -241,6 +245,7 @@ impl Default for Config {
             user_presets: vec![],
             plans: Default::default(),
             setup_plans: Default::default(),
+            desktop_plans: Default::default(),
             log_enabled: false,
         }
     }

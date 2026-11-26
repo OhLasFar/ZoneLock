@@ -35,6 +35,9 @@ pub enum UiCmd {
     /// The display setup changed (watcher -> UI thread); Some(n) = arrange
     /// plan n, linked to the new setup.
     SetupChanged(Option<u8>),
+    /// Another virtual desktop is shown (watcher -> UI thread); Some(n) =
+    /// arrange plan n, linked to that desktop.
+    DesktopChanged(Option<u8>),
     Exit,
 }
 
@@ -44,6 +47,8 @@ pub const TRAY_MSG: u32 = WM_APP + 1;
 const UPDATE_MSG: u32 = WM_APP + 2;
 /// Posted by the watcher: wparam = plan slot to arrange, 0 = none.
 const SETUP_MSG: u32 = WM_APP + 3;
+/// The virtual desktop shown changed (wparam = plan to arrange, 0 = none).
+const DESKTOP_MSG: u32 = WM_APP + 4;
 /// Balloon clicked (NIN_BALLOONUSERCLICK = WM_USER + 5).
 const NIN_BALLOONUSERCLICK: u32 = WM_USER + 5;
 
@@ -67,6 +72,12 @@ pub fn post_update(balloon: bool) {
 /// From the watcher: the display setup changed (Some = arrange that plan).
 pub fn post_setup(plan: Option<u8>) {
     post_tray(SETUP_MSG, plan.unwrap_or(0) as usize);
+}
+
+/// From the watcher: another virtual desktop is shown (Some = arrange
+/// that plan).
+pub fn post_desktop(plan: Option<u8>) {
+    post_tray(DESKTOP_MSG, plan.unwrap_or(0) as usize);
 }
 
 /// From any thread: quit ZoneLock cleanly (after starting an update).
@@ -159,6 +170,12 @@ unsafe extern "system" fn wndproc(
         x if x == SETUP_MSG => {
             if let Some(h) = handler() {
                 h(UiCmd::SetupChanged((wparam.0 != 0).then_some(wparam.0 as u8)));
+            }
+            LRESULT(0)
+        }
+        x if x == DESKTOP_MSG => {
+            if let Some(h) = handler() {
+                h(UiCmd::DesktopChanged((wparam.0 != 0).then_some(wparam.0 as u8)));
             }
             LRESULT(0)
         }

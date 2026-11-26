@@ -5,6 +5,10 @@
 //! the programs that are not running (and places their window when it
 //! shows up), and minimizes every other app window.
 //!
+//! Virtual desktops: a plan works on the desktop shown. Windows on other
+//! desktops are never minimized or moved, and a program whose only
+//! window is on another desktop is not launched a second time.
+//!
 //! Plans are stored in config.json by program, so they survive reboots.
 //! The matching logic is pure and unit-tested; the Win32 side lives in
 //! `win` below and only runs on the UI thread (hotkeys / settings panel),
@@ -61,6 +65,8 @@ pub struct LiveWin {
     pub exe: String,
     pub class: String,
     pub title: String,
+    /// On another virtual desktop than the one shown.
+    pub elsewhere: bool,
 }
 
 /// What going to a plan has to do.
@@ -72,13 +78,20 @@ pub struct Assignment {
     pub missing: Vec<usize>,
     /// live windows that are not part of the plan: minimize these.
     pub others: Vec<isize>,
+    /// plan.windows indexes whose program only has a window on another
+    /// virtual desktop: left there, not launched again.
+    pub away: Vec<usize>,
 }
 
 /// Pair plan entries with live windows. Same program is required; same
 /// class is preferred, then the same title; each live window is used
-/// once. Pure.
+/// once. Only windows of the desktop shown are placed or minimized; one
+/// on another desktop only keeps its program from being launched again.
+/// Pure.
 pub fn assign(plan: &Plan, live: &[LiveWin]) -> Assignment {
-    let mut used = vec![false; live.len()];
+    // windows elsewhere count as taken: never placed, never minimized
+    let mut used: Vec<bool> = live.iter().map(|w| w.elsewhere).collect();
+    let mut away_used = vec![false; live.len()];
     let mut out = Assignment::default();
     for (i, pw) in plan.windows.iter().enumerate() {
         let score = |lw: &LiveWin| -> Option<u8> {
@@ -100,7 +113,17 @@ pub fn assign(plan: &Plan, live: &[LiveWin]) -> Assignment {
                 used[j] = true;
                 out.matched.push((i, live[j].hwnd));
             }
-            None => out.missing.push(i),
+            None => {
+                let away = (0..live.len())
+                    .find(|&j| live[j].elsewhere && !away_used[j] && live[j].exe.eq_ignore_ascii_case(&pw.exe));
+                match away {
+                    Some(j) => {
+                        away_used[j] = true;
+                        out.away.push(i);
+                    }
+                    None => out.missing.push(i),
+                }
+            }
         }
     }
     out.others = live
@@ -189,6 +212,19 @@ pub fn plan_target(plan: &Plan, i: usize, monitors: &[crate::monitor::Monitor]) 
     Some(pw.rect.to_pixels(&mon.work, 0))
 }
 
+/// A window whose visible frame is `now` already sits at `target`: same
+/// spot within 2 px, and the same size or bigger (an app whose minimum
+/// size is larger than the spot never gets smaller). Pure.
+pub fn in_place(now: &Rect, target: &Rect) -> bool {
+    let near = |a: i32, b: i32| (a - b).abs() <= 2;
+    near(now.left, target.left)
+        && near(now.top, target.top)
+        && now.width() + 2 >= target.width()
+        && now.height() + 2 >= target.height()
+        && (near(now.right, target.right) || now.width() > target.width())
+        && (near(now.bottom, target.bottom) || now.height() > target.height())
+}
+
 /// What a "save plan N" key press does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SaveStep {
@@ -271,10 +307,15 @@ mod win {
     /// Real app windows: what you see in Alt+Tab, ours and excluded
     /// programs left out. Minimized ones count (they can be restored).
     pub(crate) fn is_app_window(hwnd: HWND, info: &WindowInfo, cfg: &Config) -> bool {
+        !info.cloaked && is_app_window_anywhere(hwnd, info, cfg)
+    }
+
+    /// `is_app_window` without the cloaked test: the caller decides what
+    /// a cloaked window is (another virtual desktop, a suspended app).
+    fn is_app_window_anywhere(hwnd: HWND, info: &WindowInfo, cfg: &Config) -> bool {
         unsafe {
             info.valid
                 && info.visible
-                && !info.cloaked
                 && info.pid != GetCurrentProcessId()
                 && !info.exe.is_empty()
                 && (info.ex_style & WS_EX_TOOLWINDOW.0 as i64) == 0
@@ -291,6 +332,48 @@ mod win {
 
     /// App windows in z-order, top first.
     pub(crate) fn app_windows(cfg: &Config) -> Vec<(HWND, WindowInfo)> {
+        all_windows()
+            .into_iter()
+            .map(|h| (h, wininfo::inspect(h)))
+            .filter(|(h, i)| is_app_window(*h, i, cfg))
+            .collect()
+    }
+
+    /// The app windows of the desktop shown (z-order, top first), then
+    /// those on other virtual desktops, as plan matching input.
+    fn live_windows(cfg: &Config) -> (Vec<(HWND, WindowInfo)>, Vec<LiveWin>) {
+        let mut here = Vec::new();
+        let mut away = Vec::new();
+        for h in all_windows() {
+            let info = wininfo::inspect(h);
+            if is_app_window(h, &info, cfg) {
+                here.push((h, info));
+            } else if info.cloaked && is_app_window_anywhere(h, &info, cfg) && crate::vdesk::is_elsewhere(h) {
+                away.push(LiveWin {
+                    hwnd: h.0 as isize,
+                    exe: info.exe.clone(),
+                    class: info.class.clone(),
+                    title: window_text(h),
+                    elsewhere: true,
+                });
+            }
+        }
+        let live = here
+            .iter()
+            .map(|(h, i)| LiveWin {
+                hwnd: h.0 as isize,
+                exe: i.exe.clone(),
+                class: i.class.clone(),
+                title: window_text(*h),
+                elsewhere: false,
+            })
+            .chain(away)
+            .collect();
+        (here, live)
+    }
+
+    /// Every top-level window, z-order top first.
+    fn all_windows() -> Vec<HWND> {
         unsafe extern "system" fn cb(hwnd: HWND, l: LPARAM) -> windows::core::BOOL {
             let v = &mut *(l.0 as *mut Vec<HWND>);
             v.push(hwnd);
@@ -300,10 +383,7 @@ mod win {
         unsafe {
             let _ = EnumWindows(Some(cb), LPARAM(&mut all as *mut _ as isize));
         }
-        all.into_iter()
-            .map(|h| (h, wininfo::inspect(h)))
-            .filter(|(h, i)| is_app_window(*h, i, cfg))
-            .collect()
+        all
     }
 
     pub(crate) fn visible_rect(hwnd: HWND, fallback: Rect) -> Rect {
@@ -418,16 +498,7 @@ mod win {
             return Err(format!("Plan {slot} is empty."));
         };
         let mons = shared.monitors.read().unwrap().clone();
-        let wins = app_windows(&cfg);
-        let live: Vec<LiveWin> = wins
-            .iter()
-            .map(|(h, i)| LiveWin {
-                hwnd: h.0 as isize,
-                exe: i.exe.clone(),
-                class: i.class.clone(),
-                title: window_text(*h),
-            })
-            .collect();
+        let (wins, live) = live_windows(&cfg);
         let a = assign(&plan, &live);
         let iconic = |h: isize| wins.iter().any(|(w, i)| w.0 as isize == h && i.iconic);
 
@@ -481,12 +552,28 @@ mod win {
                 log::line(format!("plan {slot}: cannot launch {}", pw.exe));
             }
         }
+        let away: Vec<&str> = a.away.iter().map(|&i| plan.windows[i].exe.as_str()).collect();
         log::line(format!(
-            "plan {slot}: placed {}, launched [{}], minimized {}",
+            "plan {slot}: placed {}, launched [{}], minimized {}, on another desktop [{}]",
             a.matched.len(),
             launched.join(", "),
-            a.others.len()
+            a.others.len(),
+            away.join(", ")
         ));
+        if !away.is_empty() {
+            let names = super::app_names(&Plan {
+                windows: a.away.iter().map(|&i| plan.windows[i].clone()).collect(),
+                setup: String::new(),
+            });
+            let one = a.away.len() == 1;
+            crate::planprompt::show_success(
+                &format!("Plan {slot}"),
+                &format!(
+                    "{names} {} open on another desktop: left there, not opened again.",
+                    if one { "is" } else { "are" }
+                ),
+            );
+        }
         Ok(())
     }
 
@@ -495,7 +582,11 @@ mod win {
     /// and not minimized go to their place (and z-order), without taking
     /// the focus. Nothing is launched, minimized or restored: unplugging a
     /// cable must not open apps or hide what the user is doing.
-    /// Returns how many windows were placed.
+    /// Also run when the user switches to a virtual desktop linked to the
+    /// plan: only that desktop's windows are seen. Windows already in
+    /// place are left alone, and when none had to move nothing is touched
+    /// (not even the z-order the user picked).
+    /// Returns how many windows were moved.
     pub fn arrange(shared: &Shared, slot: u8) -> Result<usize, String> {
         let cfg = shared.config.read().unwrap().clone();
         let Some(plan) = cfg.plans.get(&slot.to_string()).cloned() else {
@@ -513,14 +604,29 @@ mod win {
                 exe: i.exe.clone(),
                 class: i.class.clone(),
                 title: window_text(*h),
+                elsewhere: false,
             })
             .collect();
         let a = assign(&plan, &live);
+        let off: Vec<(HWND, Rect)> = a
+            .matched
+            .iter()
+            .filter_map(|&(i, h)| {
+                let hwnd = HWND(h as *mut _);
+                let t = plan_target(&plan, i, &mons)?;
+                let now = wins.iter().find(|(w, _)| *w == hwnd).map(|(w, info)| visible_rect(*w, info.rect))?;
+                (!super::in_place(&now, &t)).then_some((hwnd, t))
+            })
+            .collect();
+        if off.is_empty() {
+            log::line(format!("plan {slot} arrange: every window already in place"));
+            return Ok(0);
+        }
         // bottom of the stack first, so the plan's top window ends on top
-        for &(i, h) in a.matched.iter().rev() {
+        for &(_, h) in a.matched.iter().rev() {
             let hwnd = HWND(h as *mut _);
-            if let Some(t) = plan_target(&plan, i, &mons) {
-                place::apply_zone(hwnd, &t);
+            if let Some((_, t)) = off.iter().find(|(w, _)| *w == hwnd) {
+                place::apply_zone(hwnd, t);
             }
             unsafe {
                 let _ = SetWindowPos(
@@ -534,11 +640,8 @@ mod win {
                 );
             }
         }
-        log::line(format!(
-            "plan {slot} arranged for the display setup: placed {}",
-            a.matched.len()
-        ));
-        Ok(a.matched.len())
+        log::line(format!("plan {slot} arranged: moved {} of {}", off.len(), a.matched.len()));
+        Ok(off.len())
     }
 
     /// Called by the watcher when a window shows: if it belongs to a
@@ -598,7 +701,40 @@ mod tests {
             exe: exe.into(),
             class: class.into(),
             title: title.into(),
+            elsewhere: false,
         }
+    }
+
+    #[test]
+    fn windows_on_other_desktops_are_left_alone() {
+        let plan = Plan {
+            windows: vec![pw("discord.exe", "", ""), pw("chrome.exe", "C", "Mail"), pw("spotify.exe", "", "")],
+            ..Default::default()
+        };
+        let away = |h, exe: &str| LiveWin { elsewhere: true, ..lw(h, exe, "C", "") };
+        let live = vec![
+            away(1, "discord.exe"),
+            away(2, "chrome.exe"),
+            lw(3, "chrome.exe", "C", "Docs"),
+            away(4, "notepad.exe"),
+        ];
+        let a = assign(&plan, &live);
+        // the Chrome window of this desktop is used, even with a worse title
+        assert_eq!(a.matched, vec![(1, 3)]);
+        // Discord only exists elsewhere: not launched; Spotify is missing
+        assert_eq!(a.away, vec![0]);
+        assert_eq!(a.missing, vec![2]);
+        // nothing on another desktop is minimized
+        assert!(a.others.is_empty());
+    }
+
+    #[test]
+    fn in_place_allows_min_size_overflow() {
+        let t = Rect::new(0, 0, 400, 300);
+        assert!(in_place(&Rect::new(1, 0, 401, 299), &t));
+        assert!(in_place(&Rect::new(0, 0, 520, 300), &t));
+        assert!(!in_place(&Rect::new(0, 0, 300, 300), &t));
+        assert!(!in_place(&Rect::new(50, 0, 450, 300), &t));
     }
 
     #[test]

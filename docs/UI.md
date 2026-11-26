@@ -89,6 +89,10 @@ low-end PCs for no gain in a settings window.
   row per remembered set of screens (mini arrangement, label, `Connected`
   badge or last seen, "When connected, arrange" plan select, `×` forget
   except the connected one), a muted footer hint.
+- **Plans page, `Plans for your virtual desktops` card** (only with 2+
+  desktops): same rows without the mini arrangement (name, `Shown now`
+  badge, "When shown, arrange" select), muted footer hint. Plans linked
+  this way show "Arranged when shown: ..." under their apps.
 - **Confirm dialog** (`Confirm({title, body, ok, onOk})`): scrim + card,
   says exactly what will happen; Cancel focused first, Esc / click
   outside cancel, confirm button `solid-danger`. Used before Replace and

@@ -93,6 +93,17 @@ pub struct SetupUi {
     pub displays: Vec<crate::setups::SetupDisplay>,
 }
 
+/// A virtual desktop on the Plans page.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DesktopUi {
+    pub id: String,
+    pub name: String,
+    /// Shown right now.
+    pub current: bool,
+    /// Plan arranged when the user switches to it.
+    pub plan: Option<u8>,
+}
+
 /// Everything the page needs to render.
 #[derive(Debug, Clone, Serialize)]
 pub struct UiState {
@@ -124,6 +135,9 @@ pub struct UiState {
     /// Remembered display setups, the connected one first (filled by the
     /// host from setups.json, see `setups_ui`).
     pub setups: Vec<SetupUi>,
+    /// Virtual desktops in Windows' order, empty with a single one
+    /// (filled by the host, see `desktops_ui`).
+    pub desktops: Vec<DesktopUi>,
     /// Display label of every key binding shown (hotkeys + exit keys) on
     /// the current keyboard layout, e.g. "Ctrl+Alt+VK_DE" -> "Ctrl+Alt+Ù".
     /// Filled by the host (needs Win32).
@@ -175,6 +189,8 @@ pub enum PageMsg {
     DeletePreset { name: String },
     /// Link a display setup to a plan (None = no plan).
     SetupPlan { key: String, slot: Option<u8> },
+    /// Link a virtual desktop to a plan (None = no plan).
+    DesktopPlan { desktop: String, slot: Option<u8> },
     /// Forget a remembered display setup (and its plan link).
     ForgetSetup { key: String },
     /// The connected screen `monitor` (device name) replaces the old
@@ -326,6 +342,7 @@ pub fn build_state(cfg: &Config, autostart: bool, monitors: &[Monitor]) -> UiSta
             .collect(),
         key_labels: Default::default(),
         setups: vec![],
+        desktops: vec![],
         old_screens: vec![],
     }
 }
@@ -350,6 +367,39 @@ pub fn setups_ui(cfg: &Config, known: &[crate::setups::Setup], current: &crate::
     std::iter::once(ui(current, true))
         .chain(known.iter().filter(|s| s.key != current.key).map(|s| ui(s, false)))
         .collect()
+}
+
+/// The virtual desktops for the page with their plan links. Pure.
+pub fn desktops_ui(cfg: &Config, list: &[crate::vdesk::Desktop], current: Option<&str>) -> Vec<DesktopUi> {
+    list.iter()
+        .map(|d| DesktopUi {
+            id: d.id.clone(),
+            name: d.name.clone(),
+            current: current == Some(d.id.as_str()),
+            plan: cfg.desktop_plans.get(&d.id).copied(),
+        })
+        .collect()
+}
+
+/// Link virtual desktop `id` (one of `known`) to plan `slot` (None =
+/// unlink). Pure.
+pub fn set_desktop_plan(cfg: &Config, id: &str, slot: Option<u8>, known: &[String]) -> Result<Config, UiError> {
+    let mut out = cfg.clone();
+    match slot {
+        None => {
+            out.desktop_plans.remove(id);
+        }
+        Some(n) => {
+            if !cfg.plans.contains_key(&n.to_string()) {
+                return Err(err("desktops", format!("Plan {n} is empty. Save it first in the list above.")));
+            }
+            if !known.iter().any(|k| k == id) {
+                return Err(err("desktops", "That desktop is closed. Reopen the settings and try again."));
+            }
+            out.desktop_plans.insert(id.to_string(), n);
+        }
+    }
+    Ok(out)
 }
 
 /// A screen seen before, not connected now (the "replaces" list).
@@ -623,6 +673,7 @@ pub fn clear_plan(cfg: &Config, slot: u8) -> Config {
     out.plans.remove(&slot.to_string());
     // a cleared plan is no longer arranged for any setup
     out.setup_plans.retain(|_, n| *n != slot);
+    out.desktop_plans.retain(|_, n| *n != slot);
     out
 }
 
@@ -819,6 +870,23 @@ mod tests {
         assert_eq!(linked.setup_plans.get("L"), Some(&3));
         assert!(set_setup_plan(&linked, "L", None).unwrap().setup_plans.is_empty());
         assert!(clear_plan(&linked, 3).setup_plans.is_empty());
+
+        // desktops: link only existing plans to open desktops
+        let known = vec!["{A}".to_string(), "{B}".to_string()];
+        assert_eq!(set_desktop_plan(&cfg, "{A}", Some(4), &known).unwrap_err().field, "desktops");
+        assert_eq!(set_desktop_plan(&cfg, "{Z}", Some(3), &known).unwrap_err().field, "desktops");
+        let d = set_desktop_plan(&cfg, "{B}", Some(3), &known).unwrap();
+        assert_eq!(d.desktop_plans.get("{B}"), Some(&3));
+        let list = [
+            crate::vdesk::Desktop { id: "{A}".into(), name: "Desktop 1".into() },
+            crate::vdesk::Desktop { id: "{B}".into(), name: "Work".into() },
+        ];
+        let ui = desktops_ui(&d, &list, Some("{A}"));
+        assert!(ui[0].current && ui[0].plan.is_none());
+        assert!(!ui[1].current && ui[1].plan == Some(3));
+        // unlinking works even for a desktop closed since
+        assert!(set_desktop_plan(&d, "{B}", None, &[]).unwrap().desktop_plans.is_empty());
+        assert!(clear_plan(&d, 3).desktop_plans.is_empty());
         // a replaced screen: plan windows, links and zones move over
         let mut c2 = linked.clone();
         let mut p = c2.plans["3"].clone();

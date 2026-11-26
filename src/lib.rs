@@ -29,6 +29,7 @@ pub mod uimodel;
 pub mod unsnap;
 pub mod update;
 pub mod uidraw;
+pub mod vdesk;
 pub mod watcher;
 pub mod webui;
 pub mod welcome;

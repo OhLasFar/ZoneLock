@@ -100,7 +100,16 @@ struct Ctx {
     /// linked plan is arranged once the screens have settled; changing
     /// back meanwhile cancels it.
     setup_due: Option<(String, Instant)>,
+    /// Virtual desktop shown now (`vdesk::current`, "" = only one).
+    desk: String,
+    /// Switched to another desktop: when to arrange its plan.
+    desk_due: Option<Instant>,
 }
+
+/// How long a newly shown virtual desktop must stay before its plan is
+/// arranged (the switch animation, and quick Win+Ctrl+arrow runs through
+/// several desktops arrange only the last one).
+const DESK_SETTLE: Duration = Duration::from_millis(400);
 
 /// How long the screens must stay the same before a setup's plan is
 /// arranged: Windows moves windows and apps re-layout in several steps
@@ -376,6 +385,40 @@ fn setup_tick(ctx: &mut Ctx, mons: &[Monitor]) {
         ctx.resnap_until = None;
         log::line(format!("display setup {}: arranging plan {slot}", ctx.setup_key));
         crate::tray::post_setup(Some(slot));
+    }
+}
+
+/// Follow the virtual desktop shown: once a switch has settled on a
+/// desktop linked to a plan, ask the UI thread to arrange that plan
+/// (`plans::arrange`, which only sees the windows of that desktop).
+/// Runs on every watcher wake-up: a switch fires a burst of WinEvents.
+fn desktop_tick(ctx: &mut Ctx) {
+    let cur = crate::vdesk::current().unwrap_or_default();
+    let now = Instant::now();
+    if cur != ctx.desk {
+        log::line(format!("virtual desktop: {} -> {}", ctx.desk, cur));
+        // from "" = a second desktop was just created, or at start: the
+        // windows are where the user put them
+        let switched = !ctx.desk.is_empty() && !cur.is_empty();
+        ctx.desk = cur;
+        ctx.desk_due = switched.then_some(now + DESK_SETTLE);
+        crate::tray::post_desktop(None);
+        return;
+    }
+    let Some(at) = ctx.desk_due else { return };
+    if now < at {
+        return;
+    }
+    ctx.desk_due = None;
+    let cfg = ctx.shared.config.read().unwrap().clone();
+    if !cfg.enabled {
+        return;
+    }
+    if let Some(&slot) = cfg.desktop_plans.get(&ctx.desk) {
+        if cfg.plans.contains_key(&slot.to_string()) {
+            log::line(format!("virtual desktop {}: arranging plan {slot}", ctx.desk));
+            crate::tray::post_desktop(Some(slot));
+        }
     }
 }
 
@@ -801,6 +844,8 @@ pub fn run(shared: Arc<Shared>) {
             released_fs: Default::default(),
             setup_key: crate::setups::key_of(&start_mons),
             setup_due: None,
+            desk: crate::vdesk::current().unwrap_or_default(),
+            desk_due: None,
         });
     });
 
@@ -849,7 +894,14 @@ pub fn run(shared: Arc<Shared>) {
             // Wait for messages; time out every TICK_MS to re-poll config,
             // monitor layout and prune dead hwnds. During a drag we tick
             // fast to track the cursor for the zone highlight.
-            let wait_ms = if dragzones::dragging() { 30 } else { TICK_MS };
+            let desk_wait = with_ctx(|c| c.desk_due.is_some()).unwrap_or(false);
+            let wait_ms = if dragzones::dragging() {
+                30
+            } else if desk_wait {
+                50
+            } else {
+                TICK_MS
+            };
             let wait = MsgWaitForMultipleObjectsEx(
                 None,
                 wait_ms,
@@ -970,6 +1022,7 @@ fn periodic_tick(shared: &Arc<Shared>, _tid: u32) {
         with_ctx(|ctx| display_changed(ctx, &old, &mons));
     }
     with_ctx(|ctx| setup_tick(ctx, &mons));
+    with_ctx(desktop_tick);
     with_ctx(|ctx| {
         if ctx.resnap_until.is_some_and(|t| Instant::now() < t) {
             resnap_pass(ctx, &mons);
@@ -1099,6 +1152,8 @@ pub fn install_for_test(shared: Arc<Shared>) {
             released_fs: Default::default(),
             setup_key: String::new(),
             setup_due: None,
+            desk: String::new(),
+            desk_due: None,
         });
     });
 }

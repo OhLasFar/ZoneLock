@@ -232,6 +232,7 @@ select.in{width:100%;color-scheme:dark;cursor:pointer;appearance:auto}
 .setup .pick{display:flex;flex-direction:column;gap:5px}
 .setup .pick span{font:500 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dp-muted)}
 .hint-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--dp-ice)}
+.setup.desk{grid-template-columns:minmax(0,1fr) 210px}
 .setup-foot{padding:12px 20px;border-top:1px solid var(--dp-border);font-size:12.5px;color:var(--dp-muted)}
 .auto-note{font-size:12px;color:var(--dp-muted);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
@@ -870,6 +871,37 @@ function SetupsCard() {
   b.appendChild(foot);
   return c;
 }
+// one row per virtual desktop (shown only with 2+ desktops)
+function DesktopsCard() {
+  const c = Card('Plans for your virtual desktops', 'Pick a plan for each desktop (Win+Ctrl+D). When you switch to it, the open windows of that plan on that desktop go back to their place. Nothing is opened, minimized or moved to another desktop.');
+  const b = body(c, true);
+  const plans = S.plans;
+  for (const d of S.desktops) {
+    const row = el('div', 'setup desk');
+    const info = el('div');
+    info.appendChild(el('div', 'nm', d.name)).title = d.name;
+    const meta = el('div', 'meta');
+    if (d.current) meta.appendChild(Badge('ok', 'Shown now', true));
+    info.appendChild(meta);
+    const sel = el('select', 'in'); sel.setAttribute('aria-label', 'Plan for ' + d.name);
+    const opt = (v, t) => { const o = el('option', '', t); o.value = v; sel.appendChild(o); };
+    opt('', 'No plan');
+    for (const pl of plans) opt(String(pl.slot), `Plan ${pl.slot} · ${planApps(pl)}`);
+    if (d.plan && !plans.some(pl => pl.slot === d.plan)) opt(String(d.plan), `Plan ${d.plan} (empty)`);
+    sel.value = d.plan ? String(d.plan) : '';
+    sel.disabled = !plans.length && !d.plan;
+    sel.addEventListener('change', () => send({ type: 'desktop_plan', desktop: d.id, slot: sel.value ? Number(sel.value) : null }));
+    const pick = el('label', 'pick'); pick.append(el('span', '', 'When shown, arrange'), sel);
+    row.append(info, pick);
+    b.appendChild(row);
+  }
+  const foot = el('div', 'setup-foot');
+  foot.textContent = !plans.length
+    ? 'No plan saved yet: save one in the list above first.'
+    : 'Save a plan while its desktop is shown. Go to plan only touches the desktop you are on: apps open on another desktop stay there and are not opened twice.';
+  b.appendChild(foot);
+  return c;
+}
 const planApps = pl => {
   const seen = []; for (const w of pl.windows) { const n = appName(w.exe); if (!seen.some(x => x.toLowerCase() === n.toLowerCase())) seen.push(n); }
   return seen.slice(0, 3).join(', ') + (seen.length > 3 ? ` +${seen.length - 3}` : '');
@@ -936,6 +968,11 @@ function renderPlans() {
         const an = el('div', 'auto-note', 'Arranged when connected: ' + auto.map(s => s.label).join(' · '));
         an.title = an.textContent; col.appendChild(an);
       }
+      const desks = (S.desktops || []).filter(d => d.plan === n);
+      if (desks.length) {
+        const an = el('div', 'auto-note', 'Arranged when shown: ' + desks.map(d => d.name).join(' · '));
+        an.title = an.textContent; col.appendChild(an);
+      }
       what.appendChild(col);
     } else {
       what.appendChild(el('span', 'empty-note', 'Empty. Arrange your apps, then Save current.'));
@@ -952,7 +989,7 @@ function renderPlans() {
     }) : save));
     if (plan) acts.append(Btn('Clear', 'ghost sm', () => Confirm({
       title: `Clear plan ${n}?`,
-      body: [`Plan ${n} (`, el('b', '', planApps(plan)), ') will be deleted' + ((S.setups || []).some(s => s.plan === n) ? ', and no display setup will arrange it any more.' : '.') + ' Your apps stay open.'],
+      body: [`Plan ${n} (`, el('b', '', planApps(plan)), ') will be deleted' + ((S.setups || []).some(s => s.plan === n) || (S.desktops || []).some(d => d.plan === n) ? ', and nothing will arrange it automatically any more.' : '.') + ' Your apps stay open.'],
       ok: `Clear plan ${n}`,
       onOk: () => send({ type: 'plan_clear', slot: n }),
     })));
@@ -960,6 +997,7 @@ function renderPlans() {
     lb.appendChild(row);
   }
   p.append(kc, list, SetupsCard());
+  if ((S.desktops || []).length > 1) p.append(DesktopsCard());
   setCount('plans', S.plans.length ? Badge('ok', String(S.plans.length)) : Badge('muted', '0'));
 }
 
