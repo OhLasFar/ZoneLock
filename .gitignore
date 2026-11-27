@@ -2,3 +2,10 @@
 /dist
 *.bak
 .playwright-mcp/
+
+# local notes for AI coding agents (kept out of the repo)
+AGENTS.md
+CLAUDE.md
+docs/HANDOFF.md
+docs/FEASIBILITY.md
+.claude/

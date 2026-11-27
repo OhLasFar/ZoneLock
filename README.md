@@ -249,16 +249,16 @@ desktop session and quit a running ZoneLock first.
 Project tour: the pure logic (zones, engine state machine, plans, settings
 model) is unit-tested in `src/*.rs`; the Win32 layer is `watcher.rs`,
 `place.rs`, `monitor.rs`; the settings page is `src/web/settings.html`
-(plain HTML/CSS/JS, no build step). See [`AGENTS.md`](AGENTS.md) for the
-detailed map and the design rules.
+(plain HTML/CSS/JS, no build step); its design rules are in
+[`docs/UI.md`](docs/UI.md).
 
 ## Contributing
 
 Bug reports and ideas are welcome in
 [Issues](https://github.com/OhLasFar/ZoneLock/issues). For a bug, the log at
 `%APPDATA%\ZoneLock\zonelock.log` (Settings → System) helps a lot. Pull
-requests: keep the rules in `AGENTS.md` (no injection, never steal focus, no
-network) and run `cargo test` before sending.
+requests: keep ZoneLock's rules (no DLL injection, never steal focus, no
+network besides the update check) and run `cargo test` before sending.
 
 ## License
 
