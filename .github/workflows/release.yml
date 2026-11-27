@@ -28,7 +28,10 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
-      - name: Package (exe, zip, installer, checksums)
+      - name: Install WiX Toolset (MSI)
+        run: dotnet tool install --global wix --version 5.0.2
+
+      - name: Package (exe, zip, installer, MSI, checksums)
         shell: pwsh
         run: ./packaging/package.ps1
 
@@ -49,4 +52,5 @@ jobs:
             dist/*.zip
             dist/*-win-x64.exe
             dist/*-setup.exe
+            dist/*.msi
             dist/SHA256SUMS.txt

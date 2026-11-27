@@ -39,6 +39,14 @@ fn main() {
         log::line(format!("PANIC: {info}"));
     }));
 
+    // `--quit` (the MSI, before replacing or removing files): close the
+    // running ZoneLock cleanly and exit. Its tray window is message-only,
+    // so Windows Installer cannot ask it to close by itself.
+    if std::env::args().any(|a| a == "--quit") {
+        zonelock::tray::quit_running();
+        return;
+    }
+
     // Started by an update: wait for the old process, clean up after it.
     zonelock::update::after_update_startup();
 

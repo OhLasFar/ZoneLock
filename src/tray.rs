@@ -84,6 +84,26 @@ pub fn post_desktop(plan: Option<u8>) {
 pub fn post_quit() {
     post_tray(WM_COMMAND, IDM_EXIT as usize);
 }
+
+/// From another process (`zonelock.exe --quit`): ask the running
+/// ZoneLock to quit like its tray menu does, and wait (5 s) until it
+/// is gone. Returns false when none was running.
+pub fn quit_running() -> bool {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE};
+    unsafe {
+        let Ok(h) = FindWindowExW(Some(HWND_MESSAGE), None, CLASS, None) else { return false };
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(h, Some(&mut pid));
+        let proc = OpenProcess(PROCESS_SYNCHRONIZE, false, pid).ok();
+        let _ = PostMessageW(Some(h), WM_COMMAND, WPARAM(IDM_EXIT as usize), LPARAM(0));
+        if let Some(p) = proc {
+            let _ = WaitForSingleObject(p, 5000);
+            let _ = CloseHandle(p);
+        }
+        true
+    }
+}
 // The tray menu is deliberately tiny: everything else lives in the
 // settings panel (left click). Ids are stable (probe --traycmd uses 107).
 const IDM_TOGGLE: u32 = 100;

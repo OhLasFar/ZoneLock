@@ -46,6 +46,22 @@ try {
         Write-Host "Installer skipped (Inno Setup 6 not found)."
     }
 
+    # optional MSI (WiX Toolset 5: dotnet tool install --global wix)
+    if (Get-Command wix -ErrorAction SilentlyContinue) {
+        $msi = Join-Path $root "dist\zonelock-$ver-win-x64.msi"
+        wix extension add -g WixToolset.Util.wixext/5.0.2 | Out-Null
+        $ico = Get-ChildItem target\release\build\zonelock-*\out\zonelock.ico -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        $icoArg = if ($ico) { @('-d', "IconFile=$($ico.FullName)") } else { @() }
+        wix build packaging\ZoneLock.wxs -arch x64 -d "AppVersion=$ver" @icoArg -ext WixToolset.Util.wixext -o $msi
+        if ($LASTEXITCODE -ne 0) { throw "wix build failed" }
+        Remove-Item (Join-Path $root "dist\zonelock-$ver-win-x64.wixpdb") -ErrorAction SilentlyContinue
+        Write-Host "MSI: $msi"
+        $artifacts += $msi
+    } else {
+        Write-Host "MSI skipped (WiX Toolset not found: dotnet tool install --global wix --version 5.0.2)."
+    }
+
     # checksums next to the artifacts
     $sums = $artifacts | ForEach-Object {
         "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), (Split-Path $_ -Leaf)

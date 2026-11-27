@@ -7,6 +7,10 @@
 //! Nothing about the user is sent: a GET with a generic User-Agent.
 //!
 //! Install:
+//!   - MSI copy (`HKCU\Software\ZoneLock\MsiInstallDir` = the exe's
+//!     folder, written by packaging/ZoneLock.wxs): download
+//!     `zonelock-X-win-x64.msi`, verify, run `msiexec /i ... /qn UPDATED=1`
+//!     (the MSI closes us and starts the new version), quit.
 //!   - installed copy (Inno Setup, `unins000.exe` next to the exe):
 //!     download `zonelock-X-setup.exe`, verify its SHA-256 against the
 //!     release's SHA256SUMS.txt, run it with /VERYSILENT /update=1 (the
@@ -79,6 +83,7 @@ pub struct Release {
     pub page: String,
     pub setup_url: Option<String>,
     pub exe_url: Option<String>,
+    pub msi_url: Option<String>,
     pub sums_url: Option<String>,
 }
 
@@ -88,6 +93,9 @@ impl Release {
     }
     pub fn exe_name(&self) -> String {
         format!("zonelock-{}-win-x64.exe", self.version)
+    }
+    pub fn msi_name(&self) -> String {
+        format!("zonelock-{}-win-x64.msi", self.version)
     }
 }
 
@@ -112,6 +120,7 @@ pub fn parse_release(json: &str) -> Result<Release, String> {
     Ok(Release {
         setup_url: url_of(&format!("zonelock-{version}-setup.exe")),
         exe_url: url_of(&format!("zonelock-{version}-win-x64.exe")),
+        msi_url: url_of(&format!("zonelock-{version}-win-x64.msi")),
         sums_url: url_of("SHA256SUMS.txt"),
         page: if r.html_url.starts_with("https://github.com/") {
             r.html_url
@@ -345,9 +354,31 @@ pub fn spawn_auto(shared: std::sync::Arc<crate::watcher::Shared>) {
     });
 }
 
-/// Was ZoneLock installed by its setup (vs. a portable copy)?
-fn installed(exe: &std::path::Path) -> bool {
-    exe.parent().is_some_and(|d| d.join("unins000.exe").exists())
+/// How this copy of ZoneLock was installed: it updates the same way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstallKind {
+    Msi,
+    Setup,
+    Portable,
+}
+
+/// `msi_dir` = the folder the MSI says it installed to (registry), if
+/// any. The MSI wins over a leftover Inno uninstaller in the same folder.
+/// Pure.
+pub fn install_kind(exe_dir: &std::path::Path, msi_dir: Option<&str>, has_uninstaller: bool) -> InstallKind {
+    let norm = |s: &str| s.trim_end_matches(['\\', '/']).to_ascii_lowercase();
+    if msi_dir.is_some_and(|d| !d.is_empty() && norm(d) == norm(&exe_dir.to_string_lossy())) {
+        InstallKind::Msi
+    } else if has_uninstaller {
+        InstallKind::Setup
+    } else {
+        InstallKind::Portable
+    }
+}
+
+fn kind_of(exe: &std::path::Path) -> InstallKind {
+    let Some(dir) = exe.parent() else { return InstallKind::Portable };
+    install_kind(dir, win::msi_dir().as_deref(), dir.join("unins000.exe").exists())
 }
 
 /// Download, verify and install the release found by the last check.
@@ -376,11 +407,11 @@ pub fn install() {
 
 fn install_blocking(rel: &Release) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let setup = installed(&exe);
-    let (url, name) = if setup {
-        (rel.setup_url.clone(), rel.setup_name())
-    } else {
-        (rel.exe_url.clone(), rel.exe_name())
+    let kind = kind_of(&exe);
+    let (url, name) = match kind {
+        InstallKind::Msi => (rel.msi_url.clone(), rel.msi_name()),
+        InstallKind::Setup => (rel.setup_url.clone(), rel.setup_name()),
+        InstallKind::Portable => (rel.exe_url.clone(), rel.exe_name()),
     };
     let url = url.ok_or_else(|| format!("{name} is missing from the release"))?;
     let sums_url = rel.sums_url.clone().ok_or("SHA256SUMS.txt is missing from the release")?;
@@ -393,14 +424,21 @@ fn install_blocking(rel: &Release) -> Result<(), String> {
         return Err("the download does not match its checksum".into());
     }
     set_state("installing", format!("Installing ZoneLock {}…", rel.version));
-    if setup {
+    if kind != InstallKind::Portable {
         let dir = std::env::temp_dir().join("ZoneLock-update");
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let path = dir.join(&name);
         std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
-        // the setup closes us anyway (CloseApplications); /update=1 makes
-        // it start the new version when done
-        win::run(&path, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /update=1")?;
+        if kind == InstallKind::Msi {
+            // per-user MSI, no UAC: it closes us (util:CloseApplication)
+            // and UPDATED=1 makes it start the new version with --updated
+            let args = format!("/i \"{}\" /qn UPDATED=1", path.display());
+            win::run(std::path::Path::new("msiexec.exe"), &args)?;
+        } else {
+            // the setup closes us anyway (CloseApplications); /update=1
+            // makes it start the new version when done
+            win::run(&path, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /update=1")?;
+        }
     } else {
         let old = exe.with_extension("exe.old");
         let _ = std::fs::remove_file(&old);
@@ -478,6 +516,26 @@ mod win {
         } else {
             Err("could not start the installer".into())
         }
+    }
+
+    /// Where the MSI installed ZoneLock (written by ZoneLock.wxs).
+    pub fn msi_dir() -> Option<String> {
+        use windows::Win32::Foundation::ERROR_SUCCESS;
+        use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_SZ};
+        let mut buf = vec![0u16; 1024];
+        let mut len = (buf.len() * 2) as u32;
+        let r = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                w!("Software\\ZoneLock"),
+                w!("MsiInstallDir"),
+                RRF_RT_REG_SZ,
+                None,
+                Some(buf.as_mut_ptr() as *mut _),
+                Some(&mut len),
+            )
+        };
+        (r == ERROR_SUCCESS).then(|| String::from_utf16_lossy(&buf[..(len as usize / 2).saturating_sub(1)]))
     }
 
     pub fn open_url(url: &str) {
@@ -629,6 +687,19 @@ mod tests {
         assert_eq!(r.exe_url, None, "links outside github.com are refused");
         assert!(parse_release(r#"{"tag_name":"v2.0.0","prerelease":true}"#).is_err());
         assert!(parse_release("not json").is_err());
+    }
+
+    #[test]
+    fn install_kind_follows_the_installer() {
+        use std::path::Path;
+        let dir = Path::new(r"C:\Users\u\AppData\Local\Programs\ZoneLock");
+        let msi = Some(r"c:\users\u\appdata\local\programs\zonelock\");
+        assert_eq!(install_kind(dir, msi, true), InstallKind::Msi, "MSI wins over a leftover uninstaller");
+        assert_eq!(install_kind(dir, None, true), InstallKind::Setup);
+        assert_eq!(install_kind(dir, None, false), InstallKind::Portable);
+        // the MSI went somewhere else: this one is another (portable) copy
+        assert_eq!(install_kind(Path::new(r"D:\tools\ZoneLock"), msi, false), InstallKind::Portable);
+        assert_eq!(install_kind(dir, Some(""), false), InstallKind::Portable);
     }
 
     #[test]

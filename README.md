@@ -103,6 +103,7 @@ Windows 10 or 11, 64-bit. Grab the latest version from the
 | File | What it is |
 |---|---|
 | `zonelock-x.y.z-setup.exe` | **Installer** (recommended). Per-user, no admin. Adds a Start menu entry, can start with Windows, uninstalls from *Settings → Apps*. |
+| `zonelock-x.y.z-win-x64.msi` | **MSI package**, the same per-user install without admin. Handy for scripted or IT installs: `msiexec /i zonelock-x.y.z-win-x64.msi /qn`. Uninstalls from *Settings → Apps*. |
 | `zonelock-x.y.z-win-x64.zip` | **Portable.** Unzip anywhere and run `zonelock.exe`. |
 | `SHA256SUMS.txt` | Checksums to verify your download. |
 
@@ -233,18 +234,56 @@ policy). If WebView2 is missing, a built-in native panel is used instead.
 
 ## Build from source
 
-You need [Rust](https://rustup.rs/) (stable, MSVC toolchain) on Windows.
+ZoneLock builds on Windows 10 or 11 (64-bit) with the standard Rust tools.
+No admin rights are needed past installing the tools.
+
+**1. Install the tools** (once)
+
+- [Git](https://git-scm.com/download/win).
+- The **Visual Studio Build Tools** with the *Desktop development with C++*
+  workload (it brings the MSVC linker and the Windows SDK):
+  `winget install Microsoft.VisualStudio.2022.BuildTools`, then pick that
+  workload in the Visual Studio Installer.
+- **Rust** through [rustup](https://rustup.rs/) (`winget install
+  Rustlang.Rustup`), keeping the default `stable-x86_64-pc-windows-msvc`
+  toolchain.
+
+**2. Build**
 
 ```powershell
 git clone https://github.com/OhLasFar/ZoneLock.git
 cd ZoneLock
-cargo build --release          # target\release\zonelock.exe (~1 MB)
-cargo test                     # unit + real-window integration tests
-powershell -File packaging\package.ps1   # dist\: zip, setup.exe (with Inno Setup 6), SHA256SUMS
+cargo build --release          # -> target\release\zonelock.exe (~1 MB)
+.\target\release\zonelock.exe  # run it (the icon shows up in the tray)
+```
+
+`cargo build` (no `--release`) makes a faster-to-build debug exe in
+`target\debug\`. The Settings window uses the WebView2 runtime that ships
+with Windows 11 and current Windows 10.
+
+**3. Test** (optional)
+
+```powershell
+cargo test                     # unit tests + real-window integration tests
 ```
 
 Integration tests create real windows on your desktop: run them in a normal
 desktop session and quit a running ZoneLock first.
+
+**4. Package** (optional, what a release ships)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\package.ps1
+```
+
+This writes to `dist\`: the portable zip and exe, `SHA256SUMS.txt`, the
+`setup.exe` if [Inno Setup 6](https://jrsoftware.org/isinfo.php) is
+installed, and the `.msi` if the WiX Toolset is installed
+(`dotnet tool install --global wix --version 5.0.2`, needs the
+[.NET SDK](https://dotnet.microsoft.com/download)).
+
+If the build fails with *Access is denied*, ZoneLock is still running from
+`target\release`: quit it from the tray icon and build again.
 
 Project tour: the pure logic (zones, engine state machine, plans, settings
 model) is unit-tested in `src/*.rs`; the Win32 layer is `watcher.rs`,

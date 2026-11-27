@@ -1,0 +1,102 @@
+<!--
+  MSI package for ZoneLock (WiX Toolset 5). Per-user, no admin, no UAC:
+  installs to %LOCALAPPDATA%\Programs\ZoneLock like the Inno setup.
+  Build from the repo root (paths are relative to it): packaging\package.ps1, or
+    wix extension add -g WixToolset.Util.wixext/5.0.2
+    wix build packaging\ZoneLock.wxs -arch x64 -d AppVersion=1.0.9
+      -ext WixToolset.Util.wixext -o dist\zonelock-1.0.9-win-x64.msi
+  Silent install for IT: msiexec /i zonelock-X-win-x64.msi /qn
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <?ifndef AppVersion ?>
+    <?define AppVersion = "1.0.8" ?>
+  <?endif?>
+  <!-- fixed: upgrades replace the previous MSI install -->
+  <Package Name="ZoneLock" Manufacturer="OhLasFar" Version="$(var.AppVersion)"
+           UpgradeCode="{5532A534-A46B-4B3F-8E9B-E8D987E84B78}"
+           Scope="perUser" Compressed="yes" Language="1033">
+    <SummaryInformation Description="ZoneLock $(var.AppVersion)" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of ZoneLock is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- the .ico build.rs writes (package.ps1 finds it); an exe here
+         would be stored a second time in the Icon table -->
+    <?ifdef IconFile ?>
+      <Icon Id="ZoneLock.ico" SourceFile="$(var.IconFile)" />
+      <Property Id="ARPPRODUCTICON" Value="ZoneLock.ico" />
+    <?endif?>
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/OhLasFar/ZoneLock" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/OhLasFar/ZoneLock/issues" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="ZoneLock" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- per-user components: an HKCU value is the key path (ICE38). The
+         install dir is what ZoneLock's updater reads to know it came from
+         this MSI and must update with the next MSI. -->
+    <Component Id="App" Directory="INSTALLFOLDER" Guid="{BD6362D7-8D60-4F3A-A42C-D1B727992AC7}">
+      <File Id="ZoneLockExe" Source="target\release\zonelock.exe" />
+      <File Id="Readme" Source="README.md" />
+      <File Id="License" Source="LICENSE" />
+      <File Id="ConfigExample" Source="config.example.json" />
+      <RegistryValue Root="HKCU" Key="Software\ZoneLock" Name="MsiInstallDir"
+                     Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+      <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+      <RemoveFolder Id="RemoveProgramsDir" Directory="ProgramsDir" On="uninstall" />
+    </Component>
+    <Component Id="StartMenu" Directory="ProgramMenuFolder" Guid="{E19D0451-C4A0-4504-B963-084414FA483E}">
+      <Shortcut Id="StartMenuShortcut" Name="ZoneLock" Target="[#ZoneLockExe]"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RegistryValue Root="HKCU" Key="Software\ZoneLock" Name="MsiStartMenu"
+                     Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- the running daemon holds the exe. Its tray window is message-only,
+         so Windows Installer cannot ask it to close: an installed ZoneLock
+         from this MSI quits cleanly with its quit switch (only run
+         when that copy is ours: an upgrade or an uninstall, never over an
+         older Inno copy that would start instead). CloseApplication is
+         the fallback for any other running copy. -->
+    <CustomAction Id="QuitRunning" Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]zonelock.exe&quot; --quit"
+                  Return="ignore" Impersonate="yes" Execute="immediate" />
+    <util:CloseApplication Id="CloseZoneLock" Target="zonelock.exe" CloseMessage="yes"
+                           EndSessionMessage="yes" TerminateProcess="1" RebootPrompt="no" />
+
+    <!-- uninstall: also drop the "Start with Windows" value set from the app -->
+    <SetProperty Id="RemoveAutostart" Sequence="execute" Before="RemoveAutostart"
+                 Value="&quot;[System64Folder]reg.exe&quot; delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v ZoneLock /f" />
+    <CustomAction Id="RemoveAutostart" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+    <!-- and the browser cache of the settings window (config.json is user
+         data and kept); not on upgrades -->
+    <SetProperty Id="RemoveCache" Sequence="execute" Before="RemoveCache"
+                 Value="&quot;[System64Folder]cmd.exe&quot; /c rmdir /s /q &quot;[AppDataFolder]ZoneLock\WebView2&quot;" />
+    <CustomAction Id="RemoveCache" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+
+    <!-- start ZoneLock when done; UPDATED=1 = silent update started by
+         ZoneLock itself (it then shows the "updated" card) -->
+    <CustomAction Id="LaunchApp" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]zonelock.exe&quot;"
+                  Return="asyncNoWait" Impersonate="yes" />
+    <CustomAction Id="LaunchUpdated" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]zonelock.exe&quot; --updated"
+                  Return="asyncNoWait" Impersonate="yes" />
+
+    <InstallExecuteSequence>
+      <Custom Action="QuitRunning" Before="InstallValidate"
+              Condition="WIX_UPGRADE_DETECTED OR (Installed AND REMOVE=&quot;ALL&quot;)" />
+      <Custom Action="RemoveAutostart" Before="InstallFinalize"
+              Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="RemoveCache" Before="InstallFinalize"
+              Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="LaunchApp" After="InstallFinalize" Condition="NOT REMOVE AND NOT UPDATED" />
+      <Custom Action="LaunchUpdated" After="InstallFinalize" Condition="NOT REMOVE AND UPDATED" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>
