@@ -262,6 +262,8 @@ fn handle_cmd(shared: &Arc<Shared>, cmd: UiCmd) {
             );
         }
         UiCmd::Exit => unsafe {
+            // a stop without this line in the log = killed or crashed
+            log::line("quit requested (tray menu, settings page, --quit or update)");
             if zonelock::webui::is_open() {
                 // tear WebView2 down cleanly before the loop ends
                 if let Ok(h) = FindWindowW(w!("ZoneLockWebSettings"), None) {

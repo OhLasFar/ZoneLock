@@ -167,6 +167,35 @@ pub fn hold_fullscreen(hwnd: HWND, rect: &Rect) -> bool {
 
 /// Put `hwnd` exactly on `rect` (window coordinates, no compensation).
 /// Returns false if the window vanished.
+/// `apply`, then with "Force small zones" on: when the app clamped itself
+/// back to a minimum bigger than `rect` (Chromium does right after
+/// leaving fullscreen), place it again past the WM_GETMINMAXINFO clamp,
+/// like `fit_or_force` does for zones. `rect` is a window rect.
+pub fn apply_keep(hwnd: HWND, rect: &Rect) -> bool {
+    let ok = apply(hwnd, rect);
+    if !ok || !FORCE_SMALL.load(std::sync::atomic::Ordering::Relaxed) {
+        return ok;
+    }
+    unsafe {
+        let mut wr = RECT::default();
+        if GetWindowRect(hwnd, &mut wr).is_err() {
+            return ok;
+        }
+        if wr.right - wr.left > rect.width() + 3 || wr.bottom - wr.top > rect.height() + 3 {
+            let _ = SetWindowPos(
+                hwnd,
+                Some(HWND_TOP),
+                rect.left,
+                rect.top,
+                rect.width(),
+                rect.height(),
+                SET_WINDOW_POS_FLAGS(PLACE_FLAGS.0 | SWP_NOSENDCHANGING.0),
+            );
+        }
+    }
+    ok
+}
+
 pub fn apply(hwnd: HWND, rect: &Rect) -> bool {
     unsafe {
         if !IsWindow(Some(hwnd)).as_bool() {

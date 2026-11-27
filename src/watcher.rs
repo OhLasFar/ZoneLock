@@ -622,7 +622,7 @@ fn evaluate_in_ctx(ctx: &mut Ctx, info: &WindowInfo) -> Action {
             }
         }
         Action::RestoreNormal(r) => {
-            let ok = place::apply(hwnd, r);
+            let ok = place::apply_keep(hwnd, r);
             log::line(format!(
                 "restore-normal hwnd={:#x} {} -> {:?} ok={ok}",
                 info.hwnd, info.exe, r
@@ -705,7 +705,7 @@ fn evaluate_in_ctx(ctx: &mut Ctx, info: &WindowInfo) -> Action {
             if now.duration_since(since) > SETTLE_WINDOW || dragging || n >= 3 {
                 ctx.settle.remove(&info.hwnd);
             } else if !info.iconic && !info.is_zoomed() && !info.rect.approx_eq(&keep, 4) {
-                let ok = place::apply(hwnd, &keep);
+                let ok = place::apply_keep(hwnd, &keep);
                 log::line(format!(
                     "fs-exit settle hwnd={:#x} {} {:?} -> {keep:?} ok={ok}",
                     info.hwnd, info.exe, info.rect
